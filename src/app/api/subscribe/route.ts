@@ -15,7 +15,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { plan } = body; // "monthly" | "annual"
 
+    const allowMockBilling = process.env.ALLOW_MOCK_BILLING === "true";
     if (!isStripeEnabled()) {
+      if (process.env.NODE_ENV === "production" && !allowMockBilling) {
+        return errorResponse("Billing is temporarily unavailable", 503);
+      }
+
       // Mock mode: create subscription directly
       await db.subscription.upsert({
         where: { userId: user.id },

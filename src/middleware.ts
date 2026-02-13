@@ -53,7 +53,9 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   // Content Security Policy
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js needs these
+    process.env.NODE_ENV === "development"
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+      : "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
@@ -99,6 +101,7 @@ export function middleware(request: NextRequest) {
   // Check for session cookie (lightweight check - actual session validation happens in API)
   const sessionCookie = request.cookies.get("fp_session");
   const isAuthenticated = !!sessionCookie?.value;
+  const hasValidSessionShape = /^[a-f0-9]{64}$/i.test(sessionCookie?.value ?? "");
 
   // ============================================================
   // Protected page routes
@@ -108,7 +111,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith(route)
   );
 
-  if (isProtectedRoute && !isAuthenticated) {
+  if (isProtectedRoute && (!isAuthenticated || !hasValidSessionShape)) {
     const loginUrl = new URL("/auth/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return addSecurityHeaders(NextResponse.redirect(loginUrl));
@@ -122,7 +125,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith(route)
   );
 
-  if (isProtectedApi && !isAuthenticated) {
+  if (isProtectedApi && (!isAuthenticated || !hasValidSessionShape)) {
     return addSecurityHeaders(
       NextResponse.json(
         { success: false, error: "Authentication required" },
@@ -143,15 +146,23 @@ export function middleware(request: NextRequest) {
 
   if (isMutation && isApiRoute && !isWebhook) {
     const origin = request.headers.get("origin");
+    const referer = request.headers.get("referer");
     const host = request.headers.get("host");
+    const expectedHost = host?.split(":")[0];
 
-    // Allow requests with no origin (server-side, curl, etc.) in development
-    if (origin && host) {
-      const originUrl = new URL(origin);
-      const expectedHost = host.split(":")[0];
-      const originHost = originUrl.hostname;
+    // In production, require either Origin or Referer for mutation requests.
+    if (process.env.NODE_ENV === "production" && !origin && !referer) {
+      return addSecurityHeaders(
+        NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 })
+      );
+    }
 
-      if (originHost !== expectedHost && originHost !== "localhost") {
+    if (expectedHost && (origin || referer)) {
+      const source = origin || referer!;
+      const sourceUrl = new URL(source);
+      const sourceHost = sourceUrl.hostname;
+      const isLocalDev = sourceHost === "localhost" && expectedHost === "localhost";
+      if (sourceHost !== expectedHost && !isLocalDev) {
         return addSecurityHeaders(
           NextResponse.json(
             { success: false, error: "Forbidden" },

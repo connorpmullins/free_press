@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { updateArticleSchema } from "@/lib/validations";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api";
 import { auditLog } from "@/lib/audit";
+import { syncArticleInSearch } from "@/lib/search";
 
 // GET /api/articles/[id] - Get single article
 export async function GET(
@@ -86,6 +87,7 @@ export async function GET(
       slug: article.slug,
       summary: article.summary,
       content: isSubscriber ? article.content : null,
+      contentText: isSubscriber ? article.contentText : null,
       contentPreview: !isSubscriber,
       status: article.status,
       version: article.version,
@@ -191,6 +193,15 @@ export async function PATCH(
       entityId: id,
       details: { version: newVersion },
     });
+
+    // Keep search index updated if a published article changes.
+    if (updated.status === "PUBLISHED") {
+      try {
+        await syncArticleInSearch(updated.id);
+      } catch {
+        // Search sync failures should not block content updates.
+      }
+    }
 
     return successResponse({ article: { id: updated.id, version: newVersion } });
   } catch (error) {

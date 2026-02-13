@@ -9,7 +9,7 @@ import {
   recordReputationEvent,
   applyLabel,
 } from "@/services/integrity";
-import { indexArticle } from "@/lib/search";
+import { syncArticleInSearch } from "@/lib/search";
 
 // POST /api/articles/[id]/publish - Publish article
 export async function POST(
@@ -123,21 +123,9 @@ export async function POST(
       data: { articleCount: { increment: 1 } },
     });
 
-    // Index in Meilisearch
+    // Sync in Meilisearch
     try {
-      await indexArticle({
-        id: article.id,
-        title: article.title,
-        summary: article.summary,
-        contentText: article.contentText,
-        authorId: article.authorId,
-        authorName: article.author.journalistProfile?.pseudonym ?? "Unknown",
-        status: "PUBLISHED",
-        publishedAt: new Date().toISOString(),
-        integrityLabels: sourceAssessment.complete ? [] : ["NEEDS_SOURCE"],
-        reputationScore:
-          article.author.journalistProfile?.reputationScore ?? 50,
-      });
+      await syncArticleInSearch(article.id);
     } catch {
       // Search indexing failure shouldn't block publishing
     }

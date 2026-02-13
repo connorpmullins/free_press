@@ -23,6 +23,7 @@ import {
   Bookmark,
   PenSquare,
   LayoutDashboard,
+  DollarSign,
   Shield,
   LogOut,
   User,
@@ -134,12 +135,20 @@ export function Header() {
                   </DropdownMenuItem>
 
                   {user.role === "JOURNALIST" && (
-                    <DropdownMenuItem
-                      onClick={() => router.push("/journalist/dashboard")}
-                    >
-                      <LayoutDashboard className="mr-2 h-4 w-4" />
-                      Dashboard
-                    </DropdownMenuItem>
+                    <>
+                      <DropdownMenuItem
+                        onClick={() => router.push("/journalist/dashboard")}
+                      >
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        Dashboard
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => router.push("/journalist/revenue")}
+                      >
+                        <DollarSign className="mr-2 h-4 w-4" />
+                        Revenue
+                      </DropdownMenuItem>
+                    </>
                   )}
 
                   {user.role === "ADMIN" && (
@@ -230,6 +239,13 @@ export function Header() {
                           className="px-3 py-2 rounded-md hover:bg-muted"
                         >
                           Dashboard
+                        </Link>
+                        <Link
+                          href="/journalist/revenue"
+                          onClick={() => setMobileOpen(false)}
+                          className="px-3 py-2 rounded-md hover:bg-muted"
+                        >
+                          Revenue
                         </Link>
                       </>
                     )}

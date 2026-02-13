@@ -42,6 +42,7 @@ describe("POST /api/auth/login", () => {
       "user@example.com",
       "mock-token-abc123"
     );
+    expect(checkRateLimit).toHaveBeenCalledTimes(3);
   });
 
   it("rejects invalid email with 400", async () => {

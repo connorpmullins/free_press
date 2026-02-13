@@ -164,6 +164,11 @@ export default function ArticlePage({
     fetchArticle();
   }, [slug]);
 
+  useEffect(() => {
+    if (!article || article.contentPreview) return;
+    void fetch(`/api/articles/${article.id}/read`, { method: "POST" });
+  }, [article]);
+
   async function toggleBookmark() {
     if (!article || !user) return;
     const res = await fetch("/api/bookmarks", {

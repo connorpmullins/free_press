@@ -129,6 +129,25 @@ export async function POST(request: NextRequest) {
         }
         break;
       }
+
+      case "account.updated": {
+        const account = event.data.object as {
+          id: string;
+          payouts_enabled: boolean;
+          details_submitted: boolean;
+        };
+
+        await auditLog({
+          action: "connect_account_updated",
+          entity: "JournalistProfile",
+          details: {
+            accountId: account.id,
+            payoutsEnabled: account.payouts_enabled,
+            detailsSubmitted: account.details_submitted,
+          },
+        });
+        break;
+      }
     }
 
     return NextResponse.json({ received: true });

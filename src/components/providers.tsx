@@ -23,6 +23,8 @@ interface UserData {
     beats: string[];
     avatarUrl: string | null;
     verificationStatus: string;
+    stripeVerificationId: string | null;
+    stripeConnectId: string | null;
     reputationScore: number;
     articleCount: number;
     totalEarnings: number;

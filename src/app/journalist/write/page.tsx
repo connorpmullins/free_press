@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,8 @@ const emptySource: SourceInput = {
 
 export default function WriteArticlePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
   const { user } = useUser();
 
   const [title, setTitle] = useState("");
@@ -57,6 +59,26 @@ export default function WriteArticlePage() {
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingDraft, setLoadingDraft] = useState(false);
+
+  useEffect(() => {
+    if (!editId) return;
+    setLoadingDraft(true);
+    void (async () => {
+      try {
+        const res = await fetch(`/api/articles/${editId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const article = data.data;
+        setTitle(article.title ?? "");
+        setSummary(article.summary ?? "");
+        setContentJson(article.content ?? null);
+        setContentText(article.contentText ?? "");
+      } finally {
+        setLoadingDraft(false);
+      }
+    })();
+  }, [editId]);
 
   if (!user || user.role !== "JOURNALIST") {
     return (
@@ -88,8 +110,8 @@ export default function WriteArticlePage() {
     setError(null);
 
     try {
-      const res = await fetch("/api/articles", {
-        method: "POST",
+      const res = await fetch(editId ? `/api/articles/${editId}` : "/api/articles", {
+        method: editId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
@@ -103,7 +125,7 @@ export default function WriteArticlePage() {
       const data = await res.json();
 
       if (res.ok) {
-        toast.success("Article saved as draft");
+        toast.success(editId ? "Draft updated" : "Article saved as draft");
         router.push("/journalist/dashboard");
       } else {
         setError(data.error || "Failed to save article");
@@ -120,29 +142,33 @@ export default function WriteArticlePage() {
     setError(null);
 
     try {
-      // First save as draft
-      const createRes = await fetch("/api/articles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          summary,
-          content: contentJson,
-          contentText,
-          sources: sources.filter((s) => s.title),
-        }),
-      });
+      let articleId = editId;
+      if (!articleId) {
+        // First save as draft
+        const createRes = await fetch("/api/articles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            summary,
+            content: contentJson,
+            contentText,
+            sources: sources.filter((s) => s.title),
+          }),
+        });
 
-      const createData = await createRes.json();
+        const createData = await createRes.json();
 
-      if (!createRes.ok) {
-        setError(createData.error || "Failed to save article");
-        return;
+        if (!createRes.ok) {
+          setError(createData.error || "Failed to save article");
+          return;
+        }
+        articleId = createData.data.article.id;
       }
 
       // Then publish
       const publishRes = await fetch(
-        `/api/articles/${createData.data.article.id}/publish`,
+        `/api/articles/${articleId}/publish`,
         { method: "POST" }
       );
 
@@ -168,6 +194,11 @@ export default function WriteArticlePage() {
   return (
     <div className="container max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">Write Article</h1>
+      {loadingDraft && (
+        <Alert className="mb-6">
+          <AlertDescription>Loading draft...</AlertDescription>
+        </Alert>
+      )}
 
       {error && (
         <Alert variant="destructive" className="mb-6">

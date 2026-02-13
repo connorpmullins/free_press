@@ -22,6 +22,8 @@ export default function SettingsPage() {
   const [beats, setBeats] = useState("");
   const [saving, setSaving] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [startingVerification, setStartingVerification] = useState(false);
+  const [startingConnect, setStartingConnect] = useState(false);
 
   if (!initialized && user) {
     setDisplayName(user.displayName || "");
@@ -81,6 +83,40 @@ export default function SettingsPage() {
       toast.error("Network error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function startVerification() {
+    setStartingVerification(true);
+    try {
+      const res = await fetch("/api/profile/verification", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to start verification");
+        return;
+      }
+      window.location.href = data.data.url;
+    } catch {
+      toast.error("Network error while starting verification");
+    } finally {
+      setStartingVerification(false);
+    }
+  }
+
+  async function startConnectOnboarding() {
+    setStartingConnect(true);
+    try {
+      const res = await fetch("/api/profile/connect", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to start Connect onboarding");
+        return;
+      }
+      window.location.href = data.data.url;
+    } catch {
+      toast.error("Network error while starting Connect onboarding");
+    } finally {
+      setStartingConnect(false);
     }
   }
 
@@ -176,7 +212,7 @@ export default function SettingsPage() {
                     <Shield className="h-4 w-4" />
                     <AlertDescription>
                       Verification in progress. This usually takes 1-2 business
-                      days.
+                      days. If you already submitted documents, refresh shortly.
                     </AlertDescription>
                   </Alert>
                 ) : (
@@ -187,12 +223,49 @@ export default function SettingsPage() {
                       earn revenue. We use Stripe Identity for secure, privacy-preserving
                       verification.
                       <br />
-                      <Button size="sm" className="mt-2" disabled>
-                        Start Verification (configure Stripe Identity)
+                      <Button
+                        size="sm"
+                        className="mt-2"
+                        onClick={startVerification}
+                        disabled={startingVerification}
+                      >
+                        {startingVerification && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Start Verification
                       </Button>
                     </AlertDescription>
                   </Alert>
                 )}
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">
+                  Payouts (Stripe Connect)
+                </Label>
+                <Alert>
+                  <AlertDescription>
+                    {profile?.stripeConnectId
+                      ? "Connect account linked. You can reopen onboarding to complete or update payout details."
+                      : "Link your Stripe Connect account to receive payouts."}
+                    <br />
+                    <Button
+                      size="sm"
+                      className="mt-2"
+                      onClick={startConnectOnboarding}
+                      disabled={
+                        startingConnect || profile?.verificationStatus !== "VERIFIED"
+                      }
+                    >
+                      {startingConnect && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      {profile?.stripeConnectId
+                        ? "Manage Connect Account"
+                        : "Set Up Connect"}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
               </div>
             </CardContent>
           </Card>

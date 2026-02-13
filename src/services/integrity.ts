@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { cacheDel, cacheGet, cacheSet } from "@/lib/redis";
 import { auditLog } from "@/lib/audit";
+import { syncArticleInSearch } from "@/lib/search";
 import type {
   ReputationEventType,
   CorrectionSeverity,
@@ -259,15 +260,22 @@ export async function applyLabel(
     entityId: articleId,
     details: { labelType, reason },
   });
+
+  try {
+    await syncArticleInSearch(articleId);
+  } catch {
+    // Search sync failures should not block integrity actions.
+  }
 }
 
 export async function removeLabel(
   labelId: string,
   removedBy: string
 ): Promise<void> {
-  await db.integrityLabel.update({
+  const label = await db.integrityLabel.update({
     where: { id: labelId },
     data: { active: false, removedAt: new Date() },
+    select: { articleId: true },
   });
 
   await auditLog({
@@ -276,6 +284,12 @@ export async function removeLabel(
     entity: "IntegrityLabel",
     entityId: labelId,
   });
+
+  try {
+    await syncArticleInSearch(label.articleId);
+  } catch {
+    // Search sync failures should not block integrity actions.
+  }
 }
 
 export async function getActiveLabels(articleId: string) {

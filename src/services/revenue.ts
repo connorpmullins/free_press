@@ -108,6 +108,26 @@ export async function calculateMonthlyRevenue(
     },
   });
 
+  const readRows = await db.auditLog.groupBy({
+    by: ["entityId"],
+    where: {
+      action: "article_read",
+      entity: "Article",
+      entityId: { not: null },
+      createdAt: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+    _count: { _all: true },
+  });
+  const readsByArticleId = new Map<string, number>();
+  for (const row of readRows) {
+    if (row.entityId) {
+      readsByArticleId.set(row.entityId, row._count._all);
+    }
+  }
+
   // Calculate weighted reads for each journalist
   const journalistData = journalists
     .filter((j) => j.user.articles.length > 0)
@@ -127,9 +147,10 @@ export async function calculateMonthlyRevenue(
         totalDisputeCount
       );
 
-      // For now, use article count as a proxy for reads
-      // In production, this would come from actual analytics
-      const totalReads = j.user.articles.length * 100; // Placeholder
+      const totalReads = j.user.articles.reduce(
+        (sum, article) => sum + (readsByArticleId.get(article.id) ?? 0),
+        0
+      );
       const weightedReads = totalReads * integrityMultiplier;
 
       return {

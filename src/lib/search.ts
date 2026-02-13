@@ -1,4 +1,5 @@
 import { MeiliSearch, Index } from "meilisearch";
+import { db } from "@/lib/db";
 
 const globalForMeili = globalThis as unknown as {
   meili: MeiliSearch | undefined;
@@ -105,6 +106,48 @@ export async function removeArticleFromIndex(id: string): Promise<void> {
   if (!meili) return;
   const index = meili.index(ARTICLES_INDEX);
   await index.deleteDocument(id);
+}
+
+export async function syncArticleInSearch(articleId: string): Promise<void> {
+  const article = await db.article.findUnique({
+    where: { id: articleId },
+    include: {
+      author: {
+        include: {
+          journalistProfile: {
+            select: { pseudonym: true, reputationScore: true },
+          },
+        },
+      },
+      integrityLabels: {
+        where: { active: true },
+        select: { labelType: true },
+      },
+    },
+  });
+
+  if (!article) {
+    await removeArticleFromIndex(articleId);
+    return;
+  }
+
+  if (article.status !== "PUBLISHED") {
+    await removeArticleFromIndex(article.id);
+    return;
+  }
+
+  await indexArticle({
+    id: article.id,
+    title: article.title,
+    summary: article.summary,
+    contentText: article.contentText,
+    authorId: article.authorId,
+    authorName: article.author.journalistProfile?.pseudonym ?? "Unknown",
+    status: article.status,
+    publishedAt: article.publishedAt?.toISOString() ?? null,
+    integrityLabels: article.integrityLabels.map((l) => l.labelType),
+    reputationScore: article.author.journalistProfile?.reputationScore ?? 50,
+  });
 }
 
 export async function searchArticles(

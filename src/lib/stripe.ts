@@ -132,6 +132,23 @@ export async function createPayout(
   return transfer.id;
 }
 
+export async function getConnectAccountStatus(accountId: string): Promise<{
+  id: string;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
+} | null> {
+  if (!stripe) return null;
+
+  const account = await stripe.accounts.retrieve(accountId);
+  return {
+    id: account.id,
+    chargesEnabled: account.charges_enabled,
+    payoutsEnabled: account.payouts_enabled,
+    detailsSubmitted: account.details_submitted,
+  };
+}
+
 // ============================================================
 // Identity Verification
 // ============================================================

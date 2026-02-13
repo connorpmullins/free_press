@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email } = loginSchema.parse(body);
+    const ip = getIpAddress(request) ?? "unknown";
 
     // Rate limit: 5 login attempts per email per 15 minutes
     const rateLimitResult = await checkRateLimit(
@@ -17,8 +18,10 @@ export async function POST(request: NextRequest) {
       5,
       15 * 60
     );
+    const ipRateLimitResult = await checkRateLimit(`login_ip:${ip}`, 25, 15 * 60);
+    const globalRateLimitResult = await checkRateLimit("login_global", 300, 15 * 60);
 
-    if (!rateLimitResult.allowed) {
+    if (!rateLimitResult.allowed || !ipRateLimitResult.allowed || !globalRateLimitResult.allowed) {
       return successResponse(
         { message: "Check your email for a sign-in link" },
         200

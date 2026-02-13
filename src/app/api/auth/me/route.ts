@@ -21,6 +21,8 @@ export async function GET() {
             beats: true,
             avatarUrl: true,
             verificationStatus: true,
+            stripeVerificationId: true,
+            stripeConnectId: true,
             reputationScore: true,
             articleCount: true,
             totalEarnings: true,
