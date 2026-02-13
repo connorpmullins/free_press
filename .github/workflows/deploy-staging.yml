@@ -4,39 +4,33 @@ on:
   push:
     branches: [main]
 
-env:
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
 jobs:
   deploy:
-    name: Deploy to Staging (dev.warrant.ink)
+    name: Alias to dev.warrant.ink
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
       - name: Install Vercel CLI
         run: npm install -g vercel
 
-      - name: Pull Vercel Environment (Preview)
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Wait for Vercel deployment
+        run: sleep 30
 
-      - name: Build
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: Deploy to Preview
-        id: deploy
+      - name: Get latest preview deployment URL
+        id: get-url
         run: |
-          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          URL=$(vercel ls --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} 2>/dev/null | grep -m1 "https://" | awk '{print $2}' || echo "")
+          if [ -z "$URL" ]; then
+            echo "Could not find deployment URL, using direct deploy"
+            URL=$(vercel deploy --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }})
+          fi
           echo "url=$URL" >> "$GITHUB_OUTPUT"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Alias to dev.warrant.ink
-        run: vercel alias ${{ steps.deploy.outputs.url }} dev.warrant.ink --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel alias ${{ steps.get-url.outputs.url }} dev.warrant.ink --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
