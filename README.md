@@ -4,6 +4,8 @@
 
 A subscription-based platform where independent journalists publish first-hand investigative reporting. Revenue flows to journalists, not the platform. Integrity is enforced through reputation, not editorial control.
 
+> **Live:** [freepress-snowy.vercel.app](https://freepress-snowy.vercel.app)
+
 ## Principles
 
 - **Truth is a process, not a badge** — We use "supported," "disputed," and "insufficient sourcing" — never "verified true."
@@ -14,14 +16,15 @@ A subscription-based platform where independent journalists publish first-hand i
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (Turbopack)
-- **Database**: PostgreSQL + Prisma 7
+- **Framework**: Next.js 16.1.6 (Turbopack, App Router)
+- **Database**: PostgreSQL 16 + Prisma 7.4.0 (pg driver adapter)
+- **Production DB**: Neon (serverless Postgres via Vercel)
 - **Cache/Rate Limiting**: Redis (ioredis)
 - **Search**: Meilisearch
 - **Payments**: Stripe (subscriptions, Connect, Identity)
-- **Email**: Resend / Nodemailer (configurable)
-- **UI**: Radix UI + Tailwind CSS + shadcn/ui
-- **Testing**: Vitest + Testing Library
+- **Email**: Resend (production) / Mailpit (local dev)
+- **UI**: Radix UI + Tailwind CSS 4 + shadcn/ui
+- **Testing**: Vitest + Testing Library (136 tests)
 - **Validation**: Zod v4
 
 ## Getting Started
@@ -48,6 +51,10 @@ docker compose up -d
 
 This starts PostgreSQL, Redis, Meilisearch, and Mailpit (email testing).
 
+- **Mailpit UI**: http://localhost:8025 (view sent emails)
+- **Meilisearch**: http://localhost:7700
+- **PostgreSQL**: localhost:5432
+
 ### 3. Configure environment
 
 ```bash
@@ -70,13 +77,64 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Project Structure
+
+```
+src/
+├── app/                    # Next.js App Router pages & API routes
+│   ├── api/               # REST API endpoints
+│   │   ├── admin/         # Admin stats, flags, disputes
+│   │   ├── articles/      # Article CRUD + publish
+│   │   ├── auth/          # Login, logout, verify, me
+│   │   ├── bookmarks/     # User bookmarks
+│   │   ├── corrections/   # Article corrections
+│   │   ├── disputes/      # Moderation disputes
+│   │   ├── feature-requests/ # Feedback system
+│   │   ├── feed/          # Public feed (ranked/latest/trending)
+│   │   ├── flags/         # Content flagging
+│   │   ├── profile/       # Journalist profile management
+│   │   ├── search/        # Meilisearch search
+│   │   ├── subscribe/     # Stripe checkout
+│   │   └── webhooks/      # Stripe webhooks
+│   ├── admin/             # Admin dashboard pages
+│   ├── article/[slug]/    # Article detail page
+│   ├── auth/              # Login + email verification pages
+│   ├── author/[id]/       # Author profile page
+│   ├── journalist/        # Journalist dashboard + article editor
+│   ├── feed/              # Public feed page
+│   ├── feedback/          # Feature request board
+│   ├── search/            # Search page
+│   ├── subscribe/         # Subscription pricing page
+│   └── settings/          # User settings page
+├── components/            # React components
+│   ├── article/           # Article card
+│   ├── editor/            # Rich text editor
+│   ├── layout/            # Header, footer
+│   └── ui/                # shadcn/ui components
+├── lib/                   # Core utilities
+│   ├── api.ts             # API response helpers
+│   ├── audit.ts           # Audit logging
+│   ├── auth.ts            # Magic link auth + sessions
+│   ├── db.ts              # Prisma client (pg adapter)
+│   ├── email.ts           # Email sending (Resend/Mailpit)
+│   ├── redis.ts           # Redis client
+│   ├── search.ts          # Meilisearch client
+│   ├── stripe.ts          # Stripe client + helpers
+│   └── validations.ts     # Zod schemas
+├── services/              # Business logic
+│   ├── distribution.ts    # Feed ranking algorithm
+│   ├── integrity.ts       # Reputation scoring
+│   └── revenue.ts         # Revenue calculation + Gini coefficient
+└── middleware.ts           # Security headers + route protection
+```
+
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start development server |
 | `npm run build` | Production build |
-| `npm run test` | Run tests (Vitest) |
+| `npm run test` | Run tests (Vitest, 136 tests) |
 | `npm run db:push` | Push Prisma schema to database |
 | `npm run db:seed` | Seed database with sample data |
 | `npm run db:studio` | Open Prisma Studio |
@@ -103,12 +161,12 @@ Open [http://localhost:3000](http://localhost:3000).
 ### Security
 
 - Magic link authentication (no passwords)
-- Session-based auth with secure cookies
-- Rate limiting on all API endpoints
+- Session-based auth with secure httpOnly/sameSite cookies
 - XSS protection via `sanitize-html`
-- CSRF protection via SameSite cookies
-- Security headers (CSP, HSTS, X-Frame-Options, etc.)
+- Security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, etc.)
 - Role-based route protection via middleware
+- Stripe webhook signature verification
+- Input validation with Zod on all API endpoints
 
 ## Stripe Setup
 
@@ -123,28 +181,50 @@ To enable payment features, you'll need:
    - `checkout.session.completed`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
-   - `identity.verification_session.verified` (optional, for journalist identity verification)
+   - `identity.verification_session.verified` (optional)
    - `identity.verification_session.requires_input` (optional)
 5. **Update `.env`** with your keys, price IDs, and webhook secret
 
 ## Deployment
 
-The app is deployed on [Vercel](https://vercel.com). Push to `main` to trigger a production deployment.
+The app is deployed on [Vercel](https://vercel.com) with:
+- **Database**: Neon Postgres (connected via Vercel Marketplace)
+- **Payments**: Stripe (test mode, webhook configured)
+- **Email**: Resend (API key configured)
 
-For environment variables, configure them in the Vercel project settings dashboard.
+Push to `main` to trigger a production deployment, or use:
+
+```bash
+npx vercel deploy --prod
+```
+
+For environment variables, configure them in the Vercel project settings or via CLI:
+```bash
+npx vercel env add VARIABLE_NAME production
+```
 
 ## Testing
 
 ```bash
-npm run test          # Run all tests
-npx vitest run --ui   # Interactive test UI
+npm run test          # Run all 136 tests
+npx vitest --ui       # Interactive test UI
 ```
 
-136 tests covering:
-- API routes (auth, bookmarks, flags, corrections)
-- Services (integrity, distribution, revenue)
-- Utility libraries (api, auth, validations)
-- Middleware (route protection, security headers)
+Test coverage includes:
+- **API routes**: auth/login, bookmarks, flags, corrections
+- **Services**: integrity scoring, distribution ranking, revenue calculation
+- **Utilities**: API helpers, auth functions, Zod validations
+- **Middleware**: route protection, security headers
+
+## Seed Data
+
+The seed script creates realistic demo data:
+- **3 journalist profiles** with varied reputation scores (68.5 → 82.5)
+- **4 articles** (3 published, 1 draft) covering infrastructure corruption, data privacy, healthcare billing
+- **Integrity events**: flags, corrections, integrity labels (SUPPORTED, DISPUTED, NEEDS_SOURCE)
+- **Source citations**: FOIA requests, public records, satellite data, expert interviews
+- **Demo accounts**: admin, journalist, reader, subscriber
+- **Feature requests** with votes
 
 ## License
 

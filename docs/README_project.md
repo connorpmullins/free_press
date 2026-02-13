@@ -25,6 +25,26 @@ This closes the "liability gap" in most media systems, where original posters be
 
 ---
 
+## Status
+
+🟢 **Core MVP Built & Deployed** — [freepress-snowy.vercel.app](https://freepress-snowy.vercel.app)
+
+### What's Live
+- Full-stack Next.js 16 app with Prisma 7 + Neon Postgres
+- Magic link authentication with session management
+- Article system with versioning, sources, integrity labels
+- Stripe subscription integration ($5/mo, $50/yr)
+- Reputation scoring, distribution engine, corrections pipeline
+- Admin moderation tools (flags, disputes)
+- Feedback/voting system, search UI, bookmarks
+- 136 passing unit tests
+- Docker Compose for local development
+
+### Remaining Work
+See [next_steps.md](../next_steps.md) for the detailed roadmap.
+
+---
+
 ## Foundational Documents
 
 | # | Document | Description |
@@ -51,29 +71,16 @@ This closes the "liability gap" in most media systems, where original posters be
 
 ---
 
-## MVP Scope (Phase 1)
+## MVP Scope (Phase 1) — ✅ Complete
 
-- Paid subscription (web + app)
-- Journalist identity verification (Jumio)
+- Paid subscription (web)
+- Journalist identity verification (Stripe Identity — webhook handlers built)
 - Article submission with required sourcing
 - Reputation-weighted distribution
 - Flagging, labels, corrections
-- Revenue sharing to journalists
+- Revenue sharing calculation engine
 
-**Deferred to v2+:** Knowledge graph, wiki layer, community validation
-
----
-
-## Status
-
-🟡 **Pre-development** — Validating assumptions through outreach
-
-### Next Steps
-
-1. Resolve blocking open questions
-2. Conduct adversarial feedback conversations (Tier 1 contacts)
-3. Finalize technical architecture
-4. Begin MVP development
+**Deferred to v2+:** Knowledge graph, wiki layer, community validation, mobile app
 
 ---
 
