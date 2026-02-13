@@ -1,8 +1,16 @@
 # Product Requirements Document (PRD)
 
-**Project:** Integrity-Enforced Investigative Journalism Platform  
-**Status:** Draft v0.1  
+**Project:** Integrity-Enforced Investigative Journalism Platform
+**Status:** Draft v0.1
 **Last Updated:** 2026-01-21
+
+> **Implementation note (Feb 2026):** The v1 build descoped the following from this original PRD:
+> - **Mobile app** — Web-only (Next.js 16). Mobile deferred to v2+.
+> - **Knowledge graph / wiki layer** — Deferred to v2+. See Appendix.
+> - **Jumio for identity verification** — Replaced with Stripe Identity (integrated with existing Stripe billing).
+> - **Reviewer / validator role** — Deferred to v2+.
+>
+> Everything else in this PRD was implemented. See [ROADMAP.md](./ROADMAP.md) for current status.
 
 ---
 

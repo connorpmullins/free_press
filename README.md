@@ -24,7 +24,7 @@ A subscription-based platform where independent journalists publish first-hand i
 - **Payments**: Stripe (subscriptions, Connect, Identity)
 - **Email**: Resend (production) / Mailpit (local dev)
 - **UI**: Radix UI + Tailwind CSS 4 + shadcn/ui
-- **Testing**: Vitest + Testing Library (136 tests)
+- **Testing**: Vitest + Testing Library (142 unit tests) + Playwright (32 E2E tests)
 - **Validation**: Zod v4
 
 ## Getting Started
@@ -77,6 +77,25 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+### 6. Quick login (dev only)
+
+Visit [http://localhost:3000/auth/dev-login](http://localhost:3000/auth/dev-login) to instantly sign in as any seeded account with one click — no email or magic link needed.
+
+Available accounts:
+
+| Account | Email | Role |
+|---------|-------|------|
+| Admin | `admin@freepress.news` | ADMIN |
+| Journalist (E. Vasquez) | `elena.vasquez@example.com` | JOURNALIST |
+| Journalist (M. Chen) | `marcus.chen@example.com` | JOURNALIST |
+| Journalist (J. Wright) | `james.wright@example.com` | JOURNALIST |
+| Journalist (P. Kapoor) | `priya.kapoor@example.com` | JOURNALIST |
+| Journalist (C. Rivera) | `carlos.rivera@example.com` | JOURNALIST |
+| Reader (subscribed) | `reader@example.com` | READER |
+| Reader (free) | `free-reader@example.com` | READER |
+
+> This page is double-gated: it renders "Not available" in production, and the backing API returns 404 in production.
+
 ## Project Structure
 
 ```
@@ -94,7 +113,7 @@ src/
 │   │   ├── flags/         # Content flagging
 │   │   ├── profile/       # Journalist profile management
 │   │   ├── search/        # Meilisearch search
-│   │   ├── subscribe/     # Stripe checkout
+│   │   ├── subscribe/     # Stripe checkout, portal, session
 │   │   └── webhooks/      # Stripe webhooks
 │   ├── admin/             # Admin dashboard pages
 │   ├── article/[slug]/    # Article detail page
@@ -134,11 +153,12 @@ src/
 |---------|-------------|
 | `npm run dev` | Start development server |
 | `npm run build` | Production build |
-| `npm run test` | Run tests (Vitest, 136 tests) |
+| `npm run test` | Run unit tests (Vitest, 142 tests) |
 | `npm run db:push` | Push Prisma schema to database |
 | `npm run db:seed` | Seed database with sample data |
 | `npm run db:studio` | Open Prisma Studio |
 | `npm run db:reset` | Reset database and re-seed |
+| `npm run test:e2e` | Run Playwright E2E tests (32 tests) |
 | `npm run setup` | Full setup script |
 
 ## Architecture
@@ -177,13 +197,19 @@ To enable payment features, you'll need:
 3. **Create two subscription prices**:
    - Monthly: $5/month
    - Annual: $50/year
-4. **Set up a webhook endpoint** pointing to `https://your-domain/api/webhooks/stripe` with events:
+4. **Configure the Customer Portal** at [Stripe Dashboard > Billing > Portal](https://dashboard.stripe.com/test/settings/billing/portal)
+5. **Set up a webhook endpoint** pointing to `https://your-domain/api/webhooks/stripe` with events:
    - `checkout.session.completed`
+   - `customer.subscription.created`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
+   - `customer.subscription.trial_will_end`
+   - `invoice.paid`
+   - `invoice.payment_failed`
    - `identity.verification_session.verified` (optional)
    - `identity.verification_session.requires_input` (optional)
-5. **Update `.env`** with your keys, price IDs, and webhook secret
+   - `account.updated` (for Connect)
+6. **Update `.env`** with your keys, price IDs, and webhook secret
 
 ## Deployment
 
@@ -206,15 +232,17 @@ npx vercel env add VARIABLE_NAME production
 ## Testing
 
 ```bash
-npm run test          # Run all 136 tests
+npm run test          # Run all 142 unit tests
+npm run test:e2e      # Run 32 Playwright E2E tests
 npx vitest --ui       # Interactive test UI
 ```
 
 Test coverage includes:
-- **API routes**: auth/login, bookmarks, flags, corrections
+- **API routes**: auth/login, subscribe, bookmarks, flags, corrections, uploads
 - **Services**: integrity scoring, distribution ranking, revenue calculation
 - **Utilities**: API helpers, auth functions, Zod validations
 - **Middleware**: route protection, security headers
+- **E2E flows**: public pages, subscribe/checkout, journalist editor, admin moderation, access control, media rendering, read tracking
 
 ## Seed Data
 
@@ -225,6 +253,20 @@ The seed script creates realistic demo data:
 - **Source citations**: FOIA requests, public records, satellite data, expert interviews
 - **Demo accounts**: admin, journalist, reader, subscriber
 - **Feature requests** with votes
+
+## Documentation
+
+| # | Document | Description |
+|---|----------|-------------|
+| 01 | [Platform Axioms](docs/01_platform_axioms.md) | Core principles guiding all decisions |
+| 02 | [Product Requirements](docs/02_product_requirements.md) | MVP scope and product spec |
+| 03 | [Legal Framework](docs/03_legal_framework.md) | Section 230, liability, language rules |
+| 04 | [Integrity Model](docs/04_integrity_model.md) | How enforcement actually works |
+| 05 | [Outreach Plan](docs/05_outreach_plan.md) | Stakeholder outreach and validation |
+| 06 | [Open Questions](docs/06_open_questions.md) | Unresolved decisions |
+| 07 | [Potential Ideas](docs/07_potential_ideas.md) | Features under consideration |
+| -- | [Roadmap](docs/ROADMAP.md) | Status, blockers, and next steps |
+| -- | [E2E Runbook](docs/AGENT_BROWSER_E2E_RUNBOOK.md) | Browser test flows for validation |
 
 ## License
 

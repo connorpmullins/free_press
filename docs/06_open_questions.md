@@ -2,6 +2,8 @@
 
 *Things to resolve before, during, or shortly after building.*
 
+> **Updated Feb 2026:** Questions marked **RESOLVED** have been answered by the v1 implementation. Remaining questions are still open for future phases or business decisions.
+
 ---
 
 ## Product & Scope
@@ -37,14 +39,9 @@ Journalists won't adopt if it's "one more place to post." It needs to solve imme
 
 ## Integrity & Enforcement
 
-### How do we define "supported" vs "disputed" vs "validated"?
+### ~~How do we define "supported" vs "disputed" vs "validated"?~~ RESOLVED
 
-These labels need to be:
-- Legible to readers
-- Defensible legally
-- Operational for the system
-
-**Risk:** Labels that sound like truth claims ("validated") invite liability.
+Implemented as integrity labels: `SUPPORTED`, `DISPUTED`, `INSUFFICIENT_SOURCING`, `RETRACTED`. Avoided "validated" — uses process language per axioms. See `src/services/integrity.ts`.
 
 ---
 
@@ -69,34 +66,21 @@ If "verification is publication" and validators inherit liability:
 
 ## Revenue & Economics
 
-### How should revenue weighting trade off between:
+### ~~How should revenue weighting trade off between readership, integrity, and importance?~~ RESOLVED
 
-- Readership (engagement)
-- Integrity track record
-- Topic importance / public benefit
-
-Pure readership → engagement incentives return
-Pure integrity → low readership content dominates
-Pure importance → who decides what's important?
+Implemented as a composite of readership (article reads) + integrity track record (reputation score) + Gini coefficient correction (prevents winner-take-all). Topic importance not weighted — deferred. See `src/services/revenue.ts`.
 
 ---
 
-### What's the platform margin?
+### ~~What's the platform margin?~~ RESOLVED
 
-- 10%? 20%? 30%?
-- Fixed or variable?
-- Transparent to contributors?
-
-**Principle:** Capped and transparent, covering infra + verification + integrity ops.
+Configurable via `PLATFORM_MARGIN` environment variable (default 15%). Transparent — shown in revenue calculations. See `src/services/revenue.ts`.
 
 ---
 
-### How do we prevent winner-take-all dynamics?
+### ~~How do we prevent winner-take-all dynamics?~~ RESOLVED
 
-If a few journalists capture most revenue:
-- Is that a problem?
-- How do we measure (Gini coefficient)?
-- What interventions are appropriate?
+Revenue engine includes Gini coefficient calculation and correction factor. Prevents any single journalist from capturing a disproportionate share. See `src/services/revenue.ts`.
 
 ---
 
@@ -168,25 +152,15 @@ Who adjudicates? What's the timeline? What's the standard?
 
 ## Technical
 
-### Build vs. buy for identity verification?
+### ~~Build vs. buy for identity verification?~~ RESOLVED
 
-**Recommendation:** Buy (Jumio)
-
-But need to understand:
-- Data retention policies
-- Jurisdiction of data storage
-- Failure modes
+Buy: Stripe Identity (document + selfie verification). Integrated with existing Stripe billing stack. Webhook handlers built for `identity.verification_session.verified` and `identity.verification_session.requires_input`. See `src/lib/stripe.ts` and `/api/profile/verify`.
 
 ---
 
-### How do we version and audit everything?
+### ~~How do we version and audit everything?~~ RESOLVED
 
-Every claim, edit, validation, and action needs:
-- Timestamp
-- Attribution
-- Immutable record
-
-What's the data architecture?
+Prisma schema includes `ArticleVersion` model for content versioning, `IntegrityEvent` for integrity changes, and `AuditLog` for sensitive actions. All timestamped and attributed. See `prisma/schema.prisma` and `src/lib/audit.ts`.
 
 ---
 
@@ -254,20 +228,20 @@ Cold start problem:
 
 ## Priority Matrix
 
-| Question | Urgency | Blocking? |
-|----------|---------|-----------|
-| What qualifies as "first-hand"? | High | Yes (defines MVP) |
-| Identity key custody | High | Yes (architecture) |
-| Revenue split model | Medium | No (can iterate) |
-| GDPR compliance | Medium | Depends on launch market |
-| Governance structure | Low | No (can evolve) |
-| Acquisition protections | Low | No |
+| Question | Urgency | Status |
+|----------|---------|--------|
+| What qualifies as "first-hand"? | High | Open — policy decision needed before real journalists onboard |
+| Identity key custody | High | Partially resolved — Stripe holds verification data; subpoena response protocol still needed |
+| Revenue split model | Medium | Resolved — implemented with Gini correction |
+| GDPR compliance | Medium | Open — depends on launch market |
+| Governance structure | Low | Open — can evolve |
+| Acquisition protections | Low | Open |
 
 ---
 
 ## Next Steps
 
-1. Resolve blocking questions before architecture
-2. Use outreach conversations to stress-test assumptions
-3. Document decisions in a decision log
+1. Use outreach conversations to stress-test remaining open assumptions
+2. Define "first-hand" content policy before journalist onboarding
+3. Establish subpoena response protocol
 4. Revisit quarterly as product evolves
