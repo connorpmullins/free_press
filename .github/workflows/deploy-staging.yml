@@ -26,11 +26,9 @@ jobs:
       - name: Build
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Deploy
-        id: deploy
+      - name: Deploy and Alias
         run: |
-          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
-
-      - name: Alias to dev.warrant.ink
-        run: vercel alias ${{ steps.deploy.outputs.url }} dev.warrant.ink --token=${{ secrets.VERCEL_TOKEN }}
+          DEPLOY_OUTPUT=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} 2>&1)
+          URL=$(echo "$DEPLOY_OUTPUT" | grep -o 'https://[^ ]*\.vercel\.app' | tail -1)
+          echo "Deployed to: $URL"
+          vercel alias "$URL" dev.warrant.ink --token=${{ secrets.VERCEL_TOKEN }}
