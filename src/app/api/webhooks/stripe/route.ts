@@ -130,6 +130,110 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case "customer.subscription.created": {
+        const subscription = event.data.object as unknown as {
+          id: string;
+          customer: string;
+          status: string;
+        };
+
+        await auditLog({
+          action: "subscription_created",
+          entity: "Subscription",
+          details: {
+            subscriptionId: subscription.id,
+            customerId: subscription.customer,
+            status: subscription.status,
+          },
+        });
+        break;
+      }
+
+      case "customer.subscription.trial_will_end": {
+        const subscription = event.data.object as unknown as {
+          id: string;
+          customer: string;
+          trial_end: number;
+        };
+
+        await auditLog({
+          action: "subscription_trial_ending",
+          entity: "Subscription",
+          details: {
+            subscriptionId: subscription.id,
+            customerId: subscription.customer,
+            trialEnd: new Date(subscription.trial_end * 1000).toISOString(),
+          },
+        });
+        break;
+      }
+
+      case "invoice.paid": {
+        const invoice = event.data.object as unknown as {
+          id: string;
+          subscription: string | null;
+          customer: string;
+          lines?: {
+            data?: Array<{
+              period?: { start: number; end: number };
+            }>;
+          };
+        };
+
+        if (invoice.subscription) {
+          const period = invoice.lines?.data?.[0]?.period;
+          await db.subscription.updateMany({
+            where: { stripeSubscriptionId: invoice.subscription },
+            data: {
+              status: "ACTIVE",
+              ...(period && {
+                currentPeriodStart: new Date(period.start * 1000),
+                currentPeriodEnd: new Date(period.end * 1000),
+              }),
+            },
+          });
+
+          await auditLog({
+            action: "invoice_paid",
+            entity: "Subscription",
+            details: {
+              invoiceId: invoice.id,
+              subscriptionId: invoice.subscription,
+              customerId: invoice.customer,
+            },
+          });
+        }
+        break;
+      }
+
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as unknown as {
+          id: string;
+          subscription: string | null;
+          customer: string;
+          attempt_count: number;
+        };
+
+        if (invoice.subscription) {
+          await db.subscription.updateMany({
+            where: { stripeSubscriptionId: invoice.subscription },
+            data: { status: "PAST_DUE" },
+          });
+
+          await auditLog({
+            action: "invoice_payment_failed",
+            entity: "Subscription",
+            details: {
+              invoiceId: invoice.id,
+              subscriptionId: invoice.subscription,
+              customerId: invoice.customer,
+              attemptCount: invoice.attempt_count,
+            },
+          });
+        }
+        break;
+      }
+
       case "account.updated": {
         const account = event.data.object as {
           id: string;

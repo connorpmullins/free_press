@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     const checkoutUrl = await createCheckoutSession(
       customerId,
       priceId,
-      `${appUrl}/subscribe/success`,
+      `${appUrl}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
       `${appUrl}/subscribe`
     );
 

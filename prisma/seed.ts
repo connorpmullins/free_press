@@ -12,6 +12,18 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/**
+ * Generate a stable 64-char hex dev token from a friendly name.
+ * The "raw" token is the hex string itself (passes middleware regex).
+ * The DB stores hash(raw). The cookie value is raw.
+ */
+function devToken(name: string): { raw: string; hashed: string } {
+  // Derive a deterministic 32-byte hex string from the name
+  const raw = createHash("sha256").update(`dev-session:${name}`).digest("hex");
+  const hashed = hashToken(raw);
+  return { raw, hashed };
+}
+
 async function main() {
   console.log("Seeding database...");
 
@@ -43,14 +55,14 @@ async function main() {
     },
   });
 
-  // Create session for admin (token: admin-dev-token)
-  const adminSessionToken = hashToken("admin-dev-token");
+  // Create session for admin
+  const adminToken = devToken("admin");
   await prisma.session.upsert({
-    where: { token: adminSessionToken },
+    where: { token: adminToken.hashed },
     update: { expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
     create: {
       userId: admin.id,
-      token: adminSessionToken,
+      token: adminToken.hashed,
       expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     },
   });
@@ -86,13 +98,13 @@ async function main() {
   });
 
   // Create session for journalist1
-  const j1SessionToken = hashToken("journalist1-dev-token");
+  const j1Token = devToken("journalist1");
   await prisma.session.upsert({
-    where: { token: j1SessionToken },
+    where: { token: j1Token.hashed },
     update: { expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
     create: {
       userId: journalist1.id,
-      token: j1SessionToken,
+      token: j1Token.hashed,
       expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     },
   });
@@ -122,13 +134,13 @@ async function main() {
     },
   });
 
-  const j2SessionToken = hashToken("journalist2-dev-token");
+  const j2Token = devToken("journalist2");
   await prisma.session.upsert({
-    where: { token: j2SessionToken },
+    where: { token: j2Token.hashed },
     update: { expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
     create: {
       userId: journalist2.id,
-      token: j2SessionToken,
+      token: j2Token.hashed,
       expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     },
   });
@@ -158,7 +170,85 @@ async function main() {
     },
   });
 
-  console.log("  Created 3 verified journalists");
+  // ============================================================
+  // Additional Journalists
+  // ============================================================
+  const journalist4 = await prisma.user.upsert({
+    where: { email: "james.wright@example.com" },
+    update: {},
+    create: {
+      email: "james.wright@example.com",
+      displayName: "James Wright",
+      role: "JOURNALIST",
+      emailVerified: true,
+    },
+  });
+
+  await prisma.journalistProfile.upsert({
+    where: { userId: journalist4.id },
+    update: {},
+    create: {
+      userId: journalist4.id,
+      pseudonym: "J.Wright",
+      bio: "Environmental and energy reporter. Covering climate policy, fossil fuel industry practices, and environmental justice for 15 years.",
+      beats: ["Environment", "Energy", "Climate"],
+      verificationStatus: "VERIFIED",
+      reputationScore: 71.0,
+      articleCount: 0,
+    },
+  });
+
+  const journalist5 = await prisma.user.upsert({
+    where: { email: "priya.kapoor@example.com" },
+    update: {},
+    create: {
+      email: "priya.kapoor@example.com",
+      displayName: "Priya Kapoor",
+      role: "JOURNALIST",
+      emailVerified: true,
+    },
+  });
+
+  await prisma.journalistProfile.upsert({
+    where: { userId: journalist5.id },
+    update: {},
+    create: {
+      userId: journalist5.id,
+      pseudonym: "P.Kapoor",
+      bio: "Defense and national security correspondent. Formerly embedded with coalition forces. Covers defense contracting, intelligence oversight, and military justice.",
+      beats: ["Defense", "National Security", "Intelligence"],
+      verificationStatus: "VERIFIED",
+      reputationScore: 79.0,
+      articleCount: 0,
+    },
+  });
+
+  const journalist6 = await prisma.user.upsert({
+    where: { email: "carlos.rivera@example.com" },
+    update: {},
+    create: {
+      email: "carlos.rivera@example.com",
+      displayName: "Carlos Rivera",
+      role: "JOURNALIST",
+      emailVerified: true,
+    },
+  });
+
+  await prisma.journalistProfile.upsert({
+    where: { userId: journalist6.id },
+    update: {},
+    create: {
+      userId: journalist6.id,
+      pseudonym: "C.Rivera",
+      bio: "Labor and economics reporter covering wage theft, union organizing, and gig economy regulation.",
+      beats: ["Labor", "Economics", "Workers Rights"],
+      verificationStatus: "VERIFIED",
+      reputationScore: 65.0,
+      articleCount: 0,
+    },
+  });
+
+  console.log("  Created 6 verified journalists");
 
   // ============================================================
   // Reader/Subscriber
@@ -174,13 +264,13 @@ async function main() {
     },
   });
 
-  const readerSessionToken = hashToken("reader-dev-token");
+  const readerToken = devToken("reader");
   await prisma.session.upsert({
-    where: { token: readerSessionToken },
+    where: { token: readerToken.hashed },
     update: { expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
     create: {
       userId: reader.id,
-      token: readerSessionToken,
+      token: readerToken.hashed,
       expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     },
   });
@@ -199,6 +289,31 @@ async function main() {
   });
 
   console.log("  Created reader with active subscription: reader@example.com");
+
+  // Unsubscribed reader (for paywall testing)
+  const reader2 = await prisma.user.upsert({
+    where: { email: "free-reader@example.com" },
+    update: {},
+    create: {
+      email: "free-reader@example.com",
+      displayName: "Free Reader",
+      role: "READER",
+      emailVerified: true,
+    },
+  });
+
+  const reader2Token = devToken("reader2");
+  await prisma.session.upsert({
+    where: { token: reader2Token.hashed },
+    update: { expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
+    create: {
+      userId: reader2.id,
+      token: reader2Token.hashed,
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  console.log("  Created unsubscribed reader: free-reader@example.com");
 
   // ============================================================
   // Articles
@@ -681,6 +796,337 @@ async function main() {
     },
   });
 
+  // ============================================================
+  // Additional Published Articles
+  // ============================================================
+
+  // Article 5 - Environment (J.Wright) — includes video embed
+  const article5Content = {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "Satellite imagery, EPA discharge reports, and testimony from three former plant managers reveal that Consolidated Petrochemicals has been releasing untreated wastewater into tributaries of the Sabine River in eastern Texas since at least 2019." }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Contamination Levels" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Water samples collected at five discharge points downstream of the Beaumont refinery showed benzene concentrations 14 times above EPA safe limits and toluene levels that exceeded federal thresholds by a factor of nine." }] },
+      { type: "videoEmbed", attrs: { src: "https://www.youtube.com/embed/dQw4w9WgXcQ", provider: "youtube", videoId: "dQw4w9WgXcQ" } },
+      { type: "paragraph", content: [{ type: "text", text: "The video above shows aerial drone footage of discolored discharge visible at the primary outflow pipe, filmed during a November 2025 site visit. The plume extends approximately 200 meters downstream before dispersing." }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Regulatory Failure" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Texas Commission on Environmental Quality records show the facility passed its last three inspections despite the ongoing violations. Two former TCEQ inspectors, speaking off the record, described a culture of \"inspect and move on\" driven by chronic understaffing." }] },
+      { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "\"The state is essentially running an honor system for industrial polluters,\" said Dr. Maria Santos, an environmental toxicologist at Rice University." }] }] },
+    ],
+  };
+
+  const article5 = await prisma.article.upsert({
+    where: { slug: "consolidated-petrochemicals-sabine-river-contamination" },
+    update: {},
+    create: {
+      authorId: journalist4.id,
+      title: "Consolidated Petrochemicals Dumped Untreated Waste into the Sabine River for Six Years",
+      slug: "consolidated-petrochemicals-sabine-river-contamination",
+      summary: "Satellite imagery and water testing reveal years of illegal wastewater discharge from a Texas refinery, with regulators failing to act despite clear evidence.",
+      content: article5Content,
+      contentText: "Satellite imagery, EPA discharge reports, and testimony from three former plant managers reveal that Consolidated Petrochemicals has been releasing untreated wastewater into tributaries of the Sabine River in eastern Texas since at least 2019. Water samples showed benzene concentrations 14 times above EPA safe limits.",
+      status: "PUBLISHED",
+      publishedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      version: 1,
+      sourceComplete: true,
+      claimCount: 0,
+    },
+  });
+
+  await prisma.source.createMany({
+    data: [
+      { articleId: article5.id, sourceType: "DATASET", quality: "PRIMARY", title: "EPA Discharge Monitoring Reports 2019-2025", description: "Facility self-reported discharge data filed with the EPA." },
+      { articleId: article5.id, sourceType: "DATASET", quality: "PRIMARY", title: "Independent Water Sample Analysis — Sabine River", description: "Laboratory analysis of water samples from five downstream collection points.", url: "https://example.com/water-analysis" },
+      { articleId: article5.id, sourceType: "MULTIMEDIA", quality: "PRIMARY", title: "Drone Footage — Beaumont Refinery Discharge", description: "Aerial footage captured during November 2025 site visit." },
+      { articleId: article5.id, sourceType: "INTERVIEW", quality: "ANONYMOUS", title: "Former Consolidated Plant Managers (3)", description: "Off-record testimony describing discharge practices.", isAnonymous: true },
+      { articleId: article5.id, sourceType: "INTERVIEW", quality: "SECONDARY", title: "Dr. Maria Santos, Rice University", description: "On-record expert commentary on regulatory enforcement gaps." },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.articleVersion.upsert({
+    where: { articleId_version: { articleId: article5.id, version: 1 } },
+    update: {},
+    create: { articleId: article5.id, version: 1, title: article5.title, content: article5Content, summary: article5.summary, changedBy: journalist4.id, changeNote: "Initial publication" },
+  });
+
+  await prisma.integrityLabel.create({ data: { articleId: article5.id, labelType: "SUPPORTED", reason: "Primary source data with independent lab verification", appliedBy: admin.id } });
+
+  // Article 6 - Defense (P.Kapoor)
+  const article6Content = {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "A review of Pentagon procurement records and internal audit documents reveals that Sentinel Defense Group billed the Department of Defense $1.2 billion for body armor systems that failed ballistic testing — and the DOD continued purchasing them for three years after learning of the failures." }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Testing Failures" }] },
+      { type: "paragraph", content: [{ type: "text", text: "The Advanced Combat Protection System (ACPS), marketed as capable of stopping 7.62mm rounds, failed in 23 of 40 independent ballistic tests conducted by the Army Research Laboratory between 2021 and 2023. Despite this, the DOD exercised three additional contract options worth a combined $430 million." }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "The Lobbying Connection" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Federal lobbying disclosures show that Sentinel spent $4.7 million on lobbying between 2020 and 2024. Three of the firm's registered lobbyists are former senior DOD acquisition officials who oversaw body armor procurement during their government tenure." }] },
+    ],
+  };
+
+  const article6 = await prisma.article.upsert({
+    where: { slug: "sentinel-defense-body-armor-failures" },
+    update: {},
+    create: {
+      authorId: journalist5.id,
+      title: "Pentagon Spent $1.2 Billion on Body Armor That Failed Ballistic Tests",
+      slug: "sentinel-defense-body-armor-failures",
+      summary: "Procurement records show the DOD continued buying from Sentinel Defense Group for three years after internal testing revealed critical protection failures.",
+      content: article6Content,
+      contentText: "A review of Pentagon procurement records reveals that Sentinel Defense Group billed the DOD $1.2 billion for body armor that failed ballistic testing. The Advanced Combat Protection System failed in 23 of 40 independent tests.",
+      status: "PUBLISHED",
+      publishedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+      version: 1,
+      sourceComplete: true,
+      claimCount: 0,
+    },
+  });
+
+  await prisma.source.createMany({
+    data: [
+      { articleId: article6.id, sourceType: "PRIMARY_DOCUMENT", quality: "PRIMARY", title: "DOD Procurement Contract Records — ACPS Program", description: "Federal procurement database records for all ACPS contract awards and modifications." },
+      { articleId: article6.id, sourceType: "PRIMARY_DOCUMENT", quality: "PRIMARY", title: "Army Research Laboratory Ballistic Test Reports", description: "Official test results showing failure rates in 7.62mm protection standard." },
+      { articleId: article6.id, sourceType: "PUBLIC_RECORD", quality: "PRIMARY", title: "Federal Lobbying Disclosure Records", description: "Sentinel Defense Group lobbying expenditures and registered lobbyist employment histories.", url: "https://example.com/lobbying-disclosures" },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.articleVersion.upsert({
+    where: { articleId_version: { articleId: article6.id, version: 1 } },
+    update: {},
+    create: { articleId: article6.id, version: 1, title: article6.title, content: article6Content, summary: article6.summary, changedBy: journalist5.id, changeNote: "Initial publication" },
+  });
+
+  await prisma.integrityLabel.create({ data: { articleId: article6.id, labelType: "SUPPORTED", reason: "Entirely primary-source based with verifiable public records", appliedBy: admin.id } });
+
+  // Article 7 - Labor (C.Rivera) — includes image placeholder
+  const article7Content = {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "An 18-month investigation into Amazon warehouse operations across seven states reveals systematic wage theft through a combination of unpaid mandatory security screenings, forced clock-outs during active shifts, and algorithmic productivity penalties that effectively reduce hourly pay below minimum wage for an estimated 340,000 workers." }] },
+      { type: "image", attrs: { src: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800", alt: "Warehouse interior with conveyor belt systems" } },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "The Security Screen Gap" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Workers at 14 facilities described mandatory security screenings lasting 15-25 minutes at the end of each shift. Despite a 2014 Supreme Court ruling (Integrity Staffing Solutions v. Busk) that employers need not compensate for such time, Amazon's own internal policies acknowledge the screenings are for \"company property protection\" — a distinction that labor attorneys say reopens the legal question." }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Algorithmic Wage Theft" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Perhaps more significant is the practice workers call \"rate chasing.\" Amazon's proprietary productivity algorithm, known internally as ADAPT, sets individual rate targets that escalate weekly. Workers who fall below target receive automated warnings and, after three warnings in a rolling 30-day period, automatic termination." }] },
+      { type: "paragraph", content: [{ type: "text", text: "Payroll records obtained from two facilities show that the effective hourly wage — after accounting for unpaid security time, forced break extensions, and productivity-related pay deductions — drops to $11.40 per hour in some cases, well below the $15 minimum wage in the states examined." }] },
+    ],
+  };
+
+  const article7 = await prisma.article.upsert({
+    where: { slug: "amazon-warehouse-wage-theft-investigation" },
+    update: {},
+    create: {
+      authorId: journalist6.id,
+      title: "Inside Amazon's Wage Machine: How 340,000 Workers Are Paid Below Minimum Wage",
+      slug: "amazon-warehouse-wage-theft-investigation",
+      summary: "An 18-month investigation reveals systematic wage theft at Amazon warehouses through unpaid security screenings, forced clock-outs, and algorithmic productivity penalties.",
+      content: article7Content,
+      contentText: "An 18-month investigation into Amazon warehouse operations reveals systematic wage theft affecting 340,000 workers through unpaid security screenings, forced clock-outs, and algorithmic productivity penalties that reduce effective hourly pay below minimum wage.",
+      status: "PUBLISHED",
+      publishedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      version: 1,
+      sourceComplete: true,
+      claimCount: 0,
+    },
+  });
+
+  await prisma.source.createMany({
+    data: [
+      { articleId: article7.id, sourceType: "PRIMARY_DOCUMENT", quality: "PRIMARY", title: "Amazon Internal ADAPT Algorithm Documentation", description: "Leaked internal technical documentation for the productivity tracking system." },
+      { articleId: article7.id, sourceType: "DATASET", quality: "PRIMARY", title: "Payroll Records — Two Amazon Fulfillment Centers", description: "Anonymized payroll data showing effective hourly rates after deductions.", url: "https://example.com/payroll-analysis" },
+      { articleId: article7.id, sourceType: "INTERVIEW", quality: "ANONYMOUS", title: "Current and Former Amazon Workers (47 interviews)", description: "Interviews conducted across seven states describing working conditions.", isAnonymous: true },
+      { articleId: article7.id, sourceType: "PUBLIC_RECORD", quality: "PRIMARY", title: "State DOL Wage Complaints 2022-2025", description: "Department of Labor complaint filings against Amazon fulfillment centers." },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.articleVersion.upsert({
+    where: { articleId_version: { articleId: article7.id, version: 1 } },
+    update: {},
+    create: { articleId: article7.id, version: 1, title: article7.title, content: article7Content, summary: article7.summary, changedBy: journalist6.id, changeNote: "Initial publication" },
+  });
+
+  // Article 8 - Tech/AI (M.Chen) — includes video embed
+  const article8Content = {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "Internal testing documents from ClearView AI reveal that the company's facial recognition system, used by over 600 law enforcement agencies, misidentifies Black and Latino individuals at rates 10 to 100 times higher than white individuals — a disparity the company has known about since 2022 but never disclosed to its government clients." }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "The Accuracy Gap" }] },
+      { type: "paragraph", content: [{ type: "text", text: "According to internal benchmark reports, ClearView's system achieves a 99.7% true positive rate for white male subjects but drops to 83.2% for Black women and 87.1% for Latino men. These numbers, labeled \"CONFIDENTIAL — NOT FOR CLIENT DISTRIBUTION,\" were never included in the marketing materials or accuracy claims presented to police departments." }] },
+      { type: "videoEmbed", attrs: { src: "https://www.youtube.com/embed/dQw4w9WgXcQ", provider: "youtube", videoId: "dQw4w9WgXcQ" } },
+      { type: "paragraph", content: [{ type: "text", text: "The demonstration video above shows how identical test images produce dramatically different confidence scores depending on the subject's demographic characteristics." }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Real-World Consequences" }] },
+      { type: "paragraph", content: [{ type: "text", text: "At least 14 documented cases of wrongful arrest linked to facial recognition misidentification have been identified across six jurisdictions that use ClearView. In each case, the arrested individual was Black or Latino." }] },
+    ],
+  };
+
+  const article8 = await prisma.article.upsert({
+    where: { slug: "clearview-ai-racial-bias-facial-recognition" },
+    update: {},
+    create: {
+      authorId: journalist2.id,
+      title: "ClearView AI Knew Its Facial Recognition Was Biased — and Sold It to 600 Police Departments Anyway",
+      slug: "clearview-ai-racial-bias-facial-recognition",
+      summary: "Internal testing documents show the facial recognition system misidentifies Black and Latino individuals at rates up to 100x higher, a fact concealed from law enforcement clients.",
+      content: article8Content,
+      contentText: "Internal testing documents from ClearView AI reveal that the company's facial recognition system misidentifies Black and Latino individuals at rates 10 to 100 times higher than white individuals. The company has known since 2022 but never disclosed this to government clients.",
+      status: "PUBLISHED",
+      publishedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      version: 1,
+      sourceComplete: true,
+      claimCount: 0,
+    },
+  });
+
+  await prisma.source.createMany({
+    data: [
+      { articleId: article8.id, sourceType: "PRIMARY_DOCUMENT", quality: "PRIMARY", title: "ClearView AI Internal Benchmark Reports 2022-2025", description: "Confidential accuracy testing results broken down by demographic category." },
+      { articleId: article8.id, sourceType: "DATASET", quality: "PRIMARY", title: "NIST Face Recognition Vendor Test (FRVT) Data", description: "Independent federal benchmark data for comparison.", url: "https://example.com/nist-frvt" },
+      { articleId: article8.id, sourceType: "PUBLIC_RECORD", quality: "PRIMARY", title: "Wrongful Arrest Court Records (14 cases)", description: "Court filings from six jurisdictions documenting facial recognition misidentification." },
+      { articleId: article8.id, sourceType: "INTERVIEW", quality: "ANONYMOUS", title: "Former ClearView AI Engineers (2)", description: "Former employees describing internal awareness of bias issues.", isAnonymous: true },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.articleVersion.upsert({
+    where: { articleId_version: { articleId: article8.id, version: 1 } },
+    update: {},
+    create: { articleId: article8.id, version: 1, title: article8.title, content: article8Content, summary: article8.summary, changedBy: journalist2.id, changeNote: "Initial publication" },
+  });
+
+  // Article 9 - Environment (J.Wright) — held for review
+  await prisma.article.upsert({
+    where: { slug: "pfas-drinking-water-cover-up-draft" },
+    update: {},
+    create: {
+      authorId: journalist4.id,
+      title: "State Environmental Agency Suppressed PFAS Test Results for 47 Municipal Water Systems",
+      slug: "pfas-drinking-water-cover-up-draft",
+      summary: "Documents show the agency had test results showing dangerous PFAS levels months before public disclosure, during which time residents continued drinking contaminated water.",
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Investigation in progress. Awaiting final source confirmation." }] }] },
+      contentText: "Investigation in progress. Awaiting final source confirmation.",
+      status: "HELD",
+      version: 1,
+      sourceComplete: false,
+      claimCount: 0,
+    },
+  });
+
+  // Article 10 - Healthcare (S.Okonkwo) — with image
+  const article10Content = {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "A nationwide analysis of pharmaceutical pricing data reveals that insulin manufacturers have been coordinating price increases through a network of pharmacy benefit managers, resulting in average out-of-pocket costs that are 8x higher in the US than in comparable countries." }] },
+      { type: "image", attrs: { src: "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=800", alt: "Insulin vials and syringes on a medical tray" } },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "The PBM Pipeline" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Three PBMs — Express Scripts, CVS Caremark, and OptumRx — control 80% of the US prescription drug market. Internal communications obtained through litigation discovery show executives at all three companies discussing insulin pricing with manufacturer representatives in meetings that were deliberately excluded from compliance monitoring." }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Patient Impact" }] },
+      { type: "paragraph", content: [{ type: "text", text: "The American Diabetes Association estimates that 1.3 million Americans ration insulin due to cost. Emergency room data from 340 hospitals shows a 40% increase in diabetic ketoacidosis admissions — a life-threatening condition caused by insufficient insulin — since 2018." }] },
+    ],
+  };
+
+  const article10 = await prisma.article.upsert({
+    where: { slug: "insulin-pricing-pbm-coordination-investigation" },
+    update: {},
+    create: {
+      authorId: journalist3.id,
+      title: "The Insulin Cartel: How Three Companies Keep Prices 8x Higher Than the Rest of the World",
+      slug: "insulin-pricing-pbm-coordination-investigation",
+      summary: "Pricing data and internal communications reveal coordinated insulin price manipulation through pharmacy benefit managers, costing American patients billions.",
+      content: article10Content,
+      contentText: "A nationwide analysis reveals insulin manufacturers have been coordinating price increases through PBMs, resulting in costs 8x higher than comparable countries. 1.3 million Americans ration insulin due to cost.",
+      status: "PUBLISHED",
+      publishedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+      version: 1,
+      sourceComplete: true,
+      claimCount: 0,
+    },
+  });
+
+  await prisma.source.createMany({
+    data: [
+      { articleId: article10.id, sourceType: "PRIMARY_DOCUMENT", quality: "PRIMARY", title: "PBM Internal Communications (Litigation Discovery)", description: "Emails and meeting notes obtained through ongoing antitrust litigation." },
+      { articleId: article10.id, sourceType: "DATASET", quality: "PRIMARY", title: "CMS Drug Pricing Transparency Data 2018-2025", description: "Federal pricing data showing insulin cost trends.", url: "https://example.com/cms-drug-pricing" },
+      { articleId: article10.id, sourceType: "DATASET", quality: "PRIMARY", title: "ADA Emergency Room Admission Analysis", description: "Diabetic ketoacidosis admission data from 340 hospitals." },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.articleVersion.upsert({
+    where: { articleId_version: { articleId: article10.id, version: 1 } },
+    update: {},
+    create: { articleId: article10.id, version: 1, title: article10.title, content: article10Content, summary: article10.summary, changedBy: journalist3.id, changeNote: "Initial publication" },
+  });
+
+  // Article 11 - Defense (P.Kapoor)
+  const article11Content = {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "An investigation into military housing privatization reveals that families living on 12 Army installations have been exposed to toxic mold, lead paint, and structural failures while private contractors collected $3.8 billion in guaranteed government payments." }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Guaranteed Profits, Ignored Maintenance" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Under 50-year privatization contracts signed in the early 2000s, companies like Balfour Beatty and Lendlease receive automatic monthly payments from the military regardless of housing quality. Internal maintenance logs obtained through FOIA show that work orders for critical health and safety issues averaged 147 days to resolve — with some mold remediation requests pending for over a year." }] },
+      { type: "paragraph", content: [{ type: "text", text: "Medical records from Fort Hood, Fort Bragg, and Joint Base Lewis-McChord document 2,300 cases of respiratory illness in military children living in privatized housing, a rate three times higher than the national average for comparable age groups." }] },
+    ],
+  };
+
+  const article11 = await prisma.article.upsert({
+    where: { slug: "military-housing-privatization-health-crisis" },
+    update: {},
+    create: {
+      authorId: journalist5.id,
+      title: "$3.8 Billion in Guaranteed Payments While Military Families Live in Toxic Housing",
+      slug: "military-housing-privatization-health-crisis",
+      summary: "FOIA documents and medical records reveal dangerous conditions in privatized military housing while contractors collect billions in guaranteed payments.",
+      content: article11Content,
+      contentText: "Families on 12 Army installations have been exposed to toxic mold, lead paint, and structural failures while private contractors collected $3.8 billion in guaranteed government payments. Medical records document 2,300 cases of respiratory illness in military children.",
+      status: "PUBLISHED",
+      publishedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+      version: 1,
+      sourceComplete: true,
+      claimCount: 0,
+    },
+  });
+
+  await prisma.source.createMany({
+    data: [
+      { articleId: article11.id, sourceType: "PRIMARY_DOCUMENT", quality: "PRIMARY", title: "FOIA: Military Housing Maintenance Logs 2020-2025", description: "Work order records from 12 installations." },
+      { articleId: article11.id, sourceType: "PRIMARY_DOCUMENT", quality: "PRIMARY", title: "DOD Inspector General Housing Audit Reports", description: "Annual audit findings for privatized housing contractors." },
+      { articleId: article11.id, sourceType: "DATASET", quality: "PRIMARY", title: "Military Treatment Facility Medical Records (Anonymized)", description: "Aggregated respiratory illness rates for children in privatized vs. non-privatized housing." },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.articleVersion.upsert({
+    where: { articleId_version: { articleId: article11.id, version: 1 } },
+    update: {},
+    create: { articleId: article11.id, version: 1, title: article11.title, content: article11Content, summary: article11.summary, changedBy: journalist5.id, changeNote: "Initial publication" },
+  });
+
+  // ============================================================
+  // Read tracking events (for revenue testing)
+  // ============================================================
+  const readArticles = [article1, article2, article5, article6, article7, article8, article10, article11];
+  for (const article of readArticles) {
+    // Simulate 5-15 reads per article
+    const readCount = 5 + Math.floor(Math.random() * 11);
+    for (let i = 0; i < readCount; i++) {
+      await prisma.auditLog.create({
+        data: {
+          userId: i % 2 === 0 ? reader.id : null,
+          action: "article_read",
+          entity: "Article",
+          entityId: article.id,
+          details: {
+            dedupeKey: `seed-read-${article.id}-${i}`,
+            day: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+            actorType: i % 2 === 0 ? "user" : "anonymous",
+          },
+        },
+      });
+    }
+  }
+
   // Update article counts
   await prisma.journalistProfile.update({
     where: { userId: journalist1.id },
@@ -688,10 +1134,22 @@ async function main() {
   });
   await prisma.journalistProfile.update({
     where: { userId: journalist2.id },
-    data: { articleCount: 1 },
+    data: { articleCount: 2 },
   });
   await prisma.journalistProfile.update({
     where: { userId: journalist3.id },
+    data: { articleCount: 2 },
+  });
+  await prisma.journalistProfile.update({
+    where: { userId: journalist4.id },
+    data: { articleCount: 1 },
+  });
+  await prisma.journalistProfile.update({
+    where: { userId: journalist5.id },
+    data: { articleCount: 2 },
+  });
+  await prisma.journalistProfile.update({
+    where: { userId: journalist6.id },
     data: { articleCount: 1 },
   });
 
@@ -856,17 +1314,22 @@ async function main() {
     ],
   });
 
-  console.log("  Created 4 articles (3 published, 1 draft)");
+  console.log("  Created 11 articles (8 published, 1 draft, 1 held, 1 draft)");
   console.log("  Created flags, disputes, corrections, bookmarks");
   console.log("  Created 3 feature requests with votes");
+  console.log("  Created read tracking events for revenue testing");
   console.log("");
   console.log("=== Seed Complete ===");
   console.log("");
-  console.log("Dev session tokens (set as cookie 'fp_session'):  ");
-  console.log("  Admin:       admin-dev-token");
-  console.log("  Journalist1: journalist1-dev-token");
-  console.log("  Journalist2: journalist2-dev-token");
-  console.log("  Reader:      reader-dev-token");
+  console.log("Dev session tokens (set as cookie 'fp_session'):");
+  console.log(`  Admin:       ${adminToken.raw}`);
+  console.log(`  Journalist1: ${j1Token.raw}`);
+  console.log(`  Journalist2: ${j2Token.raw}`);
+  console.log(`  Reader:      ${readerToken.raw}`);
+  console.log(`  Reader2:     ${reader2Token.raw} (unsubscribed)`);
+  console.log("");
+  console.log("These are 64-char hex strings that pass middleware validation.");
+  console.log("Use: document.cookie = 'fp_session=<token>; path=/'");
 }
 
 main()

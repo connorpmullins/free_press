@@ -24,9 +24,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Plus, Trash2, Save, Send } from "lucide-react";
+import { CheckCircle2, Loader2, Plus, Trash2, Save, Send } from "lucide-react";
 import { useUser } from "@/components/providers";
 import { toast } from "sonner";
+import { createArticleSchema } from "@/lib/validations";
 
 interface SourceInput {
   sourceType: string;
@@ -79,6 +80,7 @@ function WriteArticleContent() {
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loadingDraft, setLoadingDraft] = useState(false);
 
   useEffect(() => {
@@ -94,6 +96,18 @@ function WriteArticleContent() {
         setSummary(article.summary ?? "");
         setContentJson(article.content ?? null);
         setContentText(article.contentText ?? "");
+        if (article.sources && article.sources.length > 0) {
+          setSources(
+            article.sources.map((s: Record<string, unknown>) => ({
+              sourceType: (s.sourceType as string) || "SECONDARY_REPORT",
+              quality: (s.quality as string) || "SECONDARY",
+              url: (s.url as string) || "",
+              title: (s.title as string) || "",
+              description: (s.description as string) || "",
+              isAnonymous: Boolean(s.isAnonymous),
+            }))
+          );
+        }
       } finally {
         setLoadingDraft(false);
       }
@@ -113,21 +127,64 @@ function WriteArticleContent() {
 
   function addSource() {
     setSources([...sources, { ...emptySource }]);
+    clearErrors();
   }
 
   function removeSource(index: number) {
     setSources(sources.filter((_, i) => i !== index));
+    clearErrors();
   }
 
   function updateSource(index: number, field: keyof SourceInput, value: string | boolean) {
     const updated = [...sources];
     updated[index] = { ...updated[index], [field]: value };
     setSources(updated);
+    clearErrors();
+  }
+
+  function isSourceComplete(source: SourceInput): boolean {
+    return !!(source.title && source.sourceType && source.quality);
+  }
+
+  function clearErrors() {
+    if (error) setError(null);
+    if (Object.keys(fieldErrors).length > 0) setFieldErrors({});
+  }
+
+  function validate(): boolean {
+    const result = createArticleSchema.safeParse({
+      title,
+      summary,
+      content: contentJson,
+      contentText,
+      sources: sources.filter((s) => s.title),
+    });
+
+    if (result.success) {
+      setFieldErrors({});
+      return true;
+    }
+
+    const errors: Record<string, string> = {};
+    for (const issue of result.error.issues) {
+      const key = String(issue.path[0] ?? "");
+      if (key && !errors[key]) {
+        errors[key] = issue.message;
+      }
+    }
+    setFieldErrors(errors);
+    setError(null);
+    return false;
   }
 
   async function handleSave() {
     setSaving(true);
     setError(null);
+    setFieldErrors({});
+    if (!validate()) {
+      setSaving(false);
+      return;
+    }
 
     try {
       const res = await fetch(editId ? `/api/articles/${editId}` : "/api/articles", {
@@ -148,10 +205,10 @@ function WriteArticleContent() {
         toast.success(editId ? "Draft updated" : "Article saved as draft");
         router.push("/journalist/dashboard");
       } else {
-        setError(data.error || "Failed to save article");
+        setError(`Error saving draft: ${data.error || "Failed to save article"}`);
       }
     } catch {
-      setError("Network error. Please try again.");
+      setError("Error saving draft: Network error. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -160,6 +217,11 @@ function WriteArticleContent() {
   async function handlePublish() {
     setPublishing(true);
     setError(null);
+    setFieldErrors({});
+    if (!validate()) {
+      setPublishing(false);
+      return;
+    }
 
     try {
       let articleId = editId;
@@ -180,10 +242,28 @@ function WriteArticleContent() {
         const createData = await createRes.json();
 
         if (!createRes.ok) {
-          setError(createData.error || "Failed to save article");
+          setError(`Error publishing: ${createData.error || "Failed to save article"}`);
           return;
         }
         articleId = createData.data.article.id;
+      } else {
+        // Save current edits before publishing
+        const saveRes = await fetch(`/api/articles/${articleId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            summary,
+            content: contentJson,
+            contentText,
+          }),
+        });
+
+        if (!saveRes.ok) {
+          const saveData = await saveRes.json();
+          setError(`Error publishing: ${saveData.error || "Failed to save changes before publishing"}`);
+          return;
+        }
       }
 
       // Then publish
@@ -202,10 +282,10 @@ function WriteArticleContent() {
         }
         router.push("/journalist/dashboard");
       } else {
-        setError(publishData.error || "Failed to publish article");
+        setError(`Error publishing: ${publishData.error || "Failed to publish article"}`);
       }
     } catch {
-      setError("Network error. Please try again.");
+      setError("Error publishing: Network error. Please try again.");
     } finally {
       setPublishing(false);
     }
@@ -220,12 +300,6 @@ function WriteArticleContent() {
         </Alert>
       )}
 
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
       <div className="space-y-6">
         {/* Title */}
         <div className="space-y-2">
@@ -234,9 +308,12 @@ function WriteArticleContent() {
             id="title"
             placeholder="Article title"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => { setTitle(e.target.value); clearErrors(); }}
             className="text-lg"
           />
+          {fieldErrors.title && (
+            <p className="text-sm text-destructive">{fieldErrors.title}</p>
+          )}
         </div>
 
         {/* Summary */}
@@ -246,24 +323,32 @@ function WriteArticleContent() {
             id="summary"
             placeholder="Brief summary of the article"
             value={summary}
-            onChange={(e) => setSummary(e.target.value)}
+            onChange={(e) => { setSummary(e.target.value); clearErrors(); }}
             maxLength={300}
             rows={2}
           />
           <p className="text-xs text-muted-foreground text-right">
             {summary.length}/300
           </p>
+          {fieldErrors.summary && (
+            <p className="text-sm text-destructive">{fieldErrors.summary}</p>
+          )}
         </div>
 
         {/* Editor */}
         <div className="space-y-2">
           <Label>Content</Label>
           <RichTextEditor
+            content={contentJson}
             onChange={(json, text) => {
               setContentJson(json);
               setContentText(text);
+              clearErrors();
             }}
           />
+          {fieldErrors.contentText && (
+            <p className="text-sm text-destructive">{fieldErrors.contentText}</p>
+          )}
         </div>
 
         {/* Sources */}
@@ -278,8 +363,11 @@ function WriteArticleContent() {
             {sources.map((source, index) => (
               <div key={index} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium flex items-center gap-1.5">
                     Source #{index + 1}
+                    {isSourceComplete(source) && (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    )}
                   </span>
                   {sources.length > 1 && (
                     <Button
@@ -402,15 +490,25 @@ function WriteArticleContent() {
               <Plus className="h-4 w-4 mr-2" />
               Add Source
             </Button>
+            {fieldErrors.sources && (
+              <p className="text-sm text-destructive">{fieldErrors.sources}</p>
+            )}
           </CardContent>
         </Card>
+
+        {/* Error */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         {/* Actions */}
         <div className="flex gap-3 justify-end pt-4 border-t">
           <Button
             variant="outline"
             onClick={handleSave}
-            disabled={saving || publishing || !title || !contentText}
+            disabled={saving || publishing}
           >
             {saving ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -421,9 +519,7 @@ function WriteArticleContent() {
           </Button>
           <Button
             onClick={handlePublish}
-            disabled={
-              saving || publishing || !title || !contentText || sources.every((s) => !s.title)
-            }
+            disabled={saving || publishing}
           >
             {publishing ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

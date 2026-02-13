@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const [initialized, setInitialized] = useState(false);
   const [startingVerification, setStartingVerification] = useState(false);
   const [startingConnect, setStartingConnect] = useState(false);
+  const [managingSubscription, setManagingSubscription] = useState(false);
 
   if (!initialized && user) {
     setDisplayName(user.displayName || "");
@@ -117,6 +118,23 @@ export default function SettingsPage() {
       toast.error("Network error while starting Connect onboarding");
     } finally {
       setStartingConnect(false);
+    }
+  }
+
+  async function openBillingPortal() {
+    setManagingSubscription(true);
+    try {
+      const res = await fetch("/api/subscribe/portal", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to open billing portal");
+        return;
+      }
+      window.location.href = data.data.url;
+    } catch {
+      toast.error("Network error while opening billing portal");
+    } finally {
+      setManagingSubscription(false);
     }
   }
 
@@ -284,13 +302,24 @@ export default function SettingsPage() {
                   <Badge variant="secondary">{user.subscription.plan}</Badge>
                 </div>
                 {user.subscription.currentPeriodEnd && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground mb-3">
                     Renews on{" "}
                     {new Date(
                       user.subscription.currentPeriodEnd
                     ).toLocaleDateString()}
                   </p>
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={openBillingPortal}
+                  disabled={managingSubscription}
+                >
+                  {managingSubscription && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Manage Subscription
+                </Button>
               </div>
             ) : (
               <div>

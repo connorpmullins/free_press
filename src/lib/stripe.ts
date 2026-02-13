@@ -40,7 +40,6 @@ export async function createCheckoutSession(
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
-    payment_method_types: ["card"],
     line_items: [{ price: priceId, quantity: 1 }],
     mode: "subscription",
     success_url: successUrl,
@@ -75,6 +74,47 @@ export async function cancelSubscription(
   await stripe.subscriptions.update(subscriptionId, {
     cancel_at_period_end: true,
   });
+}
+
+export async function createBillingPortalSession(
+  customerId: string,
+  returnUrl: string
+): Promise<string | null> {
+  if (!stripe) return null;
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer: customerId,
+    return_url: returnUrl,
+  });
+
+  return session.url;
+}
+
+export async function retrieveCheckoutSession(
+  sessionId: string
+): Promise<{
+  plan: string | null;
+  status: string | null;
+  customerEmail: string | null;
+  currentPeriodEnd: Date | null;
+} | null> {
+  if (!stripe) return null;
+
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ["subscription"],
+  });
+
+  const subscription = session.subscription as Stripe.Subscription | null;
+  const firstItem = subscription?.items?.data?.[0];
+
+  return {
+    plan: firstItem?.price?.recurring?.interval ?? null,
+    status: subscription?.status ?? null,
+    customerEmail: session.customer_details?.email ?? null,
+    currentPeriodEnd: firstItem?.current_period_end
+      ? new Date(firstItem.current_period_end * 1000)
+      : null,
+  };
 }
 
 // ============================================================

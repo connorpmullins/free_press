@@ -1,5 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+
+vi.mock("@/lib/auth", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/auth")>("@/lib/auth");
+  return {
+    ...actual,
+    requireAuth: vi.fn().mockResolvedValue({
+      id: "user-1",
+      email: "user@example.com",
+      role: "READER",
+    }),
+  };
+});
+
+vi.mock("@/lib/stripe", () => ({
+  isStripeEnabled: vi.fn(),
+  createStripeCustomer: vi.fn(),
+  createCheckoutSession: vi.fn(),
+}));
+
 import { POST } from "./route";
 import { isStripeEnabled } from "@/lib/stripe";
 

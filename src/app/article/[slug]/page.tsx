@@ -126,6 +126,10 @@ function renderContent(content: unknown): string {
         return "<hr />";
       case "image":
         return `<img src="${node.attrs?.src || ""}" alt="${node.attrs?.alt || ""}" />`;
+      case "videoEmbed": {
+        const src = node.attrs?.src || "";
+        return `<div class="relative w-full aspect-video my-4"><iframe src="${src}" class="absolute inset-0 w-full h-full rounded-lg" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+      }
       default:
         return children;
     }
@@ -340,12 +344,19 @@ export default function ArticlePage({
             __html: sanitizeHtml(renderContent(article.content), {
               allowedTags: sanitizeHtml.defaults.allowedTags.concat([
                 "h1", "h2", "h3", "h4", "h5", "h6", "img", "pre", "code",
+                "iframe",
               ]),
               allowedAttributes: {
                 ...sanitizeHtml.defaults.allowedAttributes,
                 img: ["src", "alt", "width", "height"],
                 a: ["href", "target", "rel"],
+                div: ["class", "data-video-embed"],
+                iframe: ["src", "class", "frameborder", "allow", "allowfullscreen"],
               },
+              allowedIframeHostnames: [
+                "www.youtube.com",
+                "player.vimeo.com",
+              ],
             }),
           }}
         />
