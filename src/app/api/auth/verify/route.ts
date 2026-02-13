@@ -45,6 +45,17 @@ export async function GET(request: NextRequest) {
       return redirect("/feed");
     }
   } catch (error) {
+    // Next.js redirect throws an internal control-flow error; do not convert it
+    // to a failed verification response.
+    if (
+      error instanceof Error &&
+      "digest" in error &&
+      typeof (error as { digest?: unknown }).digest === "string" &&
+      (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+    ) {
+      throw error;
+    }
+
     console.error("Verification error:", error);
     return redirect("/auth/login?error=verification_failed");
   }
