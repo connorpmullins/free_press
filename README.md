@@ -1,82 +1,151 @@
 # Free Press
 
-*An integrity-enforced investigative journalism platform.*
+**Integrity-enforced investigative journalism platform.**
 
----
+A subscription-based platform where independent journalists publish first-hand investigative reporting. Revenue flows to journalists, not the platform. Integrity is enforced through reputation, not editorial control.
 
-## What Is This?
+## Principles
 
-A subscription-based platform where:
+- **Truth is a process, not a badge** — We use "supported," "disputed," and "insufficient sourcing" — never "verified true."
+- **Verification is publication** — Any account that publicly validates a claim assumes the same responsibility as if it had published the claim itself.
+- **Identity where it matters** — Readers can be pseudonymous. Revenue-earning contributors must be verified humans.
+- **Incentives over intentions** — Revenue, distribution, and reputation are tied to demonstrated integrity.
+- **Everything is auditable** — Every claim, edit, and action is attributable, versioned, and reversible.
 
-- Independent journalists publish first-hand investigative reporting
-- Revenue flows to journalists, not the platform
-- Integrity is enforced through reputation, not editorial control
-- Readers get high-signal journalism with clear provenance
+## Tech Stack
 
-**We are a platform, not a publisher.** We don't write or edit content. We enforce standards through economic incentives and process transparency.
+- **Framework**: Next.js 16 (Turbopack)
+- **Database**: PostgreSQL + Prisma 7
+- **Cache/Rate Limiting**: Redis (ioredis)
+- **Search**: Meilisearch
+- **Payments**: Stripe (subscriptions, Connect, Identity)
+- **Email**: Resend / Nodemailer (configurable)
+- **UI**: Radix UI + Tailwind CSS + shadcn/ui
+- **Testing**: Vitest + Testing Library
+- **Validation**: Zod v4
 
----
+## Getting Started
 
-## Core Idea
+### Prerequisites
 
-> Any account that publicly validates a claim assumes the same responsibility and consequences as if it had published the claim itself.
+- Node.js 20+
+- Docker & Docker Compose (for local services)
+- A Stripe account (for payment features)
 
-This closes the "liability gap" in most media systems, where original posters bear risk but amplifiers and fact-checkers do not.
+### 1. Clone and install
 
----
+```bash
+git clone https://github.com/connorpmullins/free_press.git
+cd free_press
+npm install
+```
 
-## Foundational Documents
+### 2. Start local services
 
-| # | Document | Description |
-|---|----------|-------------|
-| 01 | [Platform Axioms](./01_platform_axioms.md) | Core principles guiding all decisions |
-| 02 | [Product Requirements](./02_product_requirements.md) | What we're building (MVP scope) |
-| 03 | [Legal Framework](./03_legal_framework.md) | Section 230, liability, language rules |
-| 04 | [Integrity Model](./04_integrity_model.md) | How enforcement actually works |
-| 05 | [Outreach Plan](./05_outreach_plan.md) | Who to talk to and what to learn |
-| 06 | [Open Questions](./06_open_questions.md) | Things to resolve |
-| 07 | [Potential Ideas](./07_potential_ideas.md) | Features under consideration |
+```bash
+docker compose up -d
+```
 
-**Source material:** [ChatGPT Conversation Export](./chatgpt_conversation_news_platform.md)
+This starts PostgreSQL, Redis, Meilisearch, and Mailpit (email testing).
 
----
+### 3. Configure environment
 
-## Key Principles
+```bash
+cp .env.example .env
+# Edit .env with your values (Stripe keys, etc.)
+```
 
-1. **Platform, not publisher** — We host, we don't edit
-2. **Truth is a process** — "Supported/disputed/insufficient," never "true/false"
-3. **Verification is publication** — Validators inherit author liability
-4. **Identity where it matters** — Verified humans, pseudonymous bylines
-5. **Incentives over intentions** — Design for alignment, not good faith
+### 4. Set up the database
 
----
+```bash
+npm run db:push    # Push schema to database
+npm run db:seed    # Seed with sample data
+```
 
-## MVP Scope (Phase 1)
+### 5. Run the dev server
 
-- Paid subscription (web + app)
-- Journalist identity verification (Jumio)
-- Article submission with required sourcing
-- Reputation-weighted distribution
-- Flagging, labels, corrections
-- Revenue sharing to journalists
+```bash
+npm run dev
+```
 
-**Deferred to v2+:** Knowledge graph, wiki layer, community validation
+Open [http://localhost:3000](http://localhost:3000).
 
----
+## Scripts
 
-## Status
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run test` | Run tests (Vitest) |
+| `npm run db:push` | Push Prisma schema to database |
+| `npm run db:seed` | Seed database with sample data |
+| `npm run db:studio` | Open Prisma Studio |
+| `npm run db:reset` | Reset database and re-seed |
+| `npm run setup` | Full setup script |
 
-🟡 **Pre-development** — Validating assumptions through outreach
+## Architecture
 
-### Next Steps
+### Revenue Model
 
-1. Resolve blocking open questions
-2. Conduct adversarial feedback conversations (Tier 1 contacts)
-3. Finalize technical architecture
-4. Begin MVP development
+85% of subscription revenue flows to journalists, weighted by:
+- Readership (article views)
+- Integrity track record (reputation score)
+- Gini coefficient correction (prevents winner-take-all)
 
----
+### Integrity System
 
-## Contact
+- **Reputation scoring** (0–100): Based on source quality, corrections, flags, and disputes
+- **Integrity labels**: `SUPPORTED`, `DISPUTED`, `INSUFFICIENT_SOURCING`, `RETRACTED`
+- **Distribution engine**: Higher-integrity articles get wider distribution
+- **Correction system**: Voluntary corrections improve reputation; forced corrections reduce it
+- **Flag & dispute pipeline**: Community flagging with admin review and journalist dispute rights
 
-*[Your contact info here]*
+### Security
+
+- Magic link authentication (no passwords)
+- Session-based auth with secure cookies
+- Rate limiting on all API endpoints
+- XSS protection via `sanitize-html`
+- CSRF protection via SameSite cookies
+- Security headers (CSP, HSTS, X-Frame-Options, etc.)
+- Role-based route protection via middleware
+
+## Stripe Setup
+
+To enable payment features, you'll need:
+
+1. **Create a Stripe account** at [stripe.com](https://stripe.com)
+2. **Get your API keys** from the [Stripe Dashboard](https://dashboard.stripe.com/apikeys)
+3. **Create two subscription prices**:
+   - Monthly: $5/month
+   - Annual: $50/year
+4. **Set up a webhook endpoint** pointing to `https://your-domain/api/webhooks/stripe` with events:
+   - `checkout.session.completed`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+   - `identity.verification_session.verified` (optional, for journalist identity verification)
+   - `identity.verification_session.requires_input` (optional)
+5. **Update `.env`** with your keys, price IDs, and webhook secret
+
+## Deployment
+
+The app is deployed on [Vercel](https://vercel.com). Push to `main` to trigger a production deployment.
+
+For environment variables, configure them in the Vercel project settings dashboard.
+
+## Testing
+
+```bash
+npm run test          # Run all tests
+npx vitest run --ui   # Interactive test UI
+```
+
+136 tests covering:
+- API routes (auth, bookmarks, flags, corrections)
+- Services (integrity, distribution, revenue)
+- Utility libraries (api, auth, validations)
+- Middleware (route protection, security headers)
+
+## License
+
+[AGPL-3.0](LICENSE) — Free Press is open source. If you modify and deploy it, you must share your changes.
