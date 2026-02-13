@@ -383,7 +383,7 @@ export default function ArticlePage({
                   key={source.id}
                   className="flex items-start gap-3 text-sm"
                 >
-                  <Badge variant="outline" className="text-xs shrink-0 mt-0.5">
+                  <Badge variant="outline" className="text-xs shrink-0 mt-0.5 min-w-[165px] justify-center">
                     {source.sourceType.replace("_", " ")}
                   </Badge>
                   <div>
