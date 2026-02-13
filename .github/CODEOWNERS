@@ -1,0 +1,19 @@
+# Default owner for everything
+* @connorpmullins
+
+# Integrity model — changes affect journalist livelihoods
+src/services/integrity.ts @connorpmullins
+src/services/distribution.ts @connorpmullins
+
+# Revenue model
+src/services/revenue.ts @connorpmullins
+
+# Database schema
+prisma/schema.prisma @connorpmullins
+
+# CI/CD workflows
+.github/workflows/ @connorpmullins
+
+# Auth and security middleware
+src/lib/auth.ts @connorpmullins
+src/middleware.ts @connorpmullins

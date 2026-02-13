@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: Lint
-        run: npm run lint || echo "::warning::Lint has errors — see output above"
+        run: npm run lint
 
       - name: Type check
         run: npx tsc --noEmit

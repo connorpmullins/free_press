@@ -137,7 +137,22 @@ Currently 3 published articles. For realistic testing need 20-30+. Expand `prism
 
 ---
 
-## 4. Technical Notes
+## 4. Contribution Infrastructure (Future)
+
+Items to consider as the contributor base grows. All are code-complete or trivially addable — deferred because they add friction or complexity that isn't justified at current scale.
+
+| Item | Why Deferred | When to Revisit |
+|------|-------------|-----------------|
+| **CODE_OF_CONDUCT.md** | Standard for larger communities (Contributor Covenant). Not urgent for a solo-maintained project. | Before active recruitment of outside contributors |
+| **DCO / CLA** | Developer Certificate of Origin or Contributor License Agreement. Relevant for AGPL projects if dual-licensing is ever considered. | If licensing strategy changes or corporate contributors appear |
+| **Signed commits requirement** | Adds friction to every commit. Overkill for a small contributor pool. | When contributor count exceeds ~5 or security posture demands it |
+| **E2E tests in CI** | Playwright tests require Docker services (Postgres, Redis, Meilisearch). Would need a complex CI matrix with service containers. Unit tests + build are sufficient gatekeeping for now. | When CI budget allows or a flaky-test-free E2E suite is worth the cost |
+| **Dependabot / Renovate** | Automated dependency update PRs. Useful but noisy — better to enable once CI is battle-tested. | After branch protection and CI are stable for ~1 month |
+| **Branch naming conventions** | Enforce patterns like `feature/*`, `fix/*` via ruleset. Low priority while contributor count is small. | When PRs from external contributors start arriving |
+
+---
+
+## 5. Technical Notes
 
 ### Key Files
 - `src/lib/db.ts` — Prisma client with `pg` driver adapter (required for Prisma 7)
