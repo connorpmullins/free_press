@@ -68,8 +68,8 @@ test.describe("Flow 3d: Article Management", () => {
   test("dashboard shows edit button for published articles", async ({ page }) => {
     await loginAsJournalist(page);
     await page.goto("/journalist/dashboard");
-    // Look for pencil edit icon button
-    const editButton = page.locator('a[title="Edit"]').first();
+    // Look for pencil edit icon button (title is on the <button> inside the <a>)
+    const editButton = page.locator('button[title="Edit"]').first();
     await expect(editButton).toBeVisible();
   });
 
