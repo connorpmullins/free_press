@@ -24,7 +24,7 @@ A subscription-based platform where independent journalists publish first-hand i
 - **Payments**: Stripe (subscriptions, Connect, Identity)
 - **Email**: Resend (production) / Mailpit (local dev)
 - **UI**: Radix UI + Tailwind CSS 4 + shadcn/ui
-- **Testing**: Vitest + Testing Library (142 unit tests) + Playwright (32 E2E tests)
+- **Testing**: Vitest + Testing Library + Playwright
 - **Validation**: Zod v4
 
 ## Getting Started
@@ -79,7 +79,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### 6. Quick login (dev only)
 
-Visit [http://localhost:3000/auth/dev-login](http://localhost:3000/auth/dev-login) to instantly sign in as any seeded account with one click — no email or magic link needed.
+Set `ENABLE_DEV_LOGIN=true` and `NEXT_PUBLIC_ENABLE_DEV_LOGIN=true`, then visit [http://localhost:3000/auth/dev-login](http://localhost:3000/auth/dev-login) to instantly sign in as any seeded account with one click — no email or magic link needed.
 
 Available accounts:
 
@@ -94,7 +94,7 @@ Available accounts:
 | Reader (subscribed) | `reader@example.com` | READER |
 | Reader (free) | `free-reader@example.com` | READER |
 
-> This page is double-gated: it renders "Not available" in production, and the backing API returns 404 in production.
+> This page is double-gated: it requires explicit dev-login env flags and the backing API returns 404 in production.
 
 ## Project Structure
 
@@ -224,6 +224,20 @@ To enable payment features, you'll need:
    - `account.updated` (for Connect)
 6. **Update `.env`** with your keys, price IDs, and webhook secret
 
+### Subscription states
+
+- Users may have **no subscription row** (never subscribed) and still use `/subscribe` normally.
+- Lapsed users should have a subscription row with status like `EXPIRED`.
+- When a lapsed user has a stale `stripeCustomerId`, `/api/subscribe` now recreates the Stripe customer and retries checkout once.
+
+### Subscribe troubleshooting (`POST /api/subscribe`)
+
+If `/subscribe` button clicks return `500`, verify:
+
+- `STRIPE_SECRET_KEY` is set for the target Vercel scope (Preview or Production).
+- `STRIPE_MONTHLY_PRICE_ID` and `STRIPE_ANNUAL_PRICE_ID` are set in that same scope and belong to the same Stripe account/mode as the secret key.
+- `NEXT_PUBLIC_APP_URL` is set to your deployed URL for that scope (for success/cancel redirects).
+
 ## Environments
 
 Three environments, three databases, three config sources:
@@ -257,8 +271,8 @@ Environment variables are configured in Vercel project settings, scoped to Produ
 ## Testing
 
 ```bash
-npm run test          # Run all 142 unit tests
-npm run test:e2e      # Run 32 Playwright E2E tests
+npm run test          # Run all unit tests
+npm run test:e2e      # Run Playwright E2E tests
 npx vitest --ui       # Interactive test UI
 ```
 
@@ -290,6 +304,7 @@ The seed script creates realistic demo data:
 | 05 | [Outreach Plan](docs/05_outreach_plan.md) | Stakeholder outreach and validation |
 | 06 | [Open Questions](docs/06_open_questions.md) | Unresolved decisions |
 | 07 | [Potential Ideas](docs/07_potential_ideas.md) | Features under consideration |
+| 08 | [Observability Proposal](docs/08_observability_proposal.md) | Full-stack observability + MCP closed loop plan |
 | -- | [Roadmap](docs/ROADMAP.md) | Status, blockers, and next steps |
 | -- | [E2E Runbook](docs/AGENT_BROWSER_E2E_RUNBOOK.md) | Browser test flows for validation |
 

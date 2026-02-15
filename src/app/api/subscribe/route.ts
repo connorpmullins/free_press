@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { createSubscriptionSchema } from "@/lib/validations";
 import {
   isStripeEnabled,
   createStripeCustomer,
@@ -8,12 +9,26 @@ import {
 } from "@/lib/stripe";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api";
 
+function isMissingStripeCustomerError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  const maybeStripeError = error as Error & {
+    code?: string;
+    param?: string;
+  };
+
+  return (
+    maybeStripeError.code === "resource_missing" &&
+    maybeStripeError.param === "customer"
+  );
+}
+
 // POST /api/subscribe - Create checkout session
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
     const body = await request.json();
-    const { plan } = body; // "monthly" | "annual"
+    const { plan } = createSubscriptionSchema.parse(body);
 
     const allowMockBilling = process.env.ALLOW_MOCK_BILLING === "true";
     if (!isStripeEnabled()) {
@@ -76,12 +91,39 @@ export async function POST(request: NextRequest) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const checkoutUrl = await createCheckoutSession(
-      customerId,
-      priceId,
-      `${appUrl}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
-      `${appUrl}/subscribe`
-    );
+    const successUrl = `${appUrl}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${appUrl}/subscribe`;
+
+    let checkoutUrl: string | null = null;
+
+    try {
+      checkoutUrl = await createCheckoutSession(
+        customerId,
+        priceId,
+        successUrl,
+        cancelUrl
+      );
+    } catch (error) {
+      // A lapsed subscription may retain a stale Stripe customer ID.
+      // Recreate the customer once and retry checkout.
+      if (!isMissingStripeCustomerError(error)) throw error;
+
+      const replacementCustomerId = await createStripeCustomer(
+        user.email,
+        user.id
+      );
+      if (!replacementCustomerId) {
+        return errorResponse("Failed to create payment customer", 500);
+      }
+
+      customerId = replacementCustomerId;
+      checkoutUrl = await createCheckoutSession(
+        customerId,
+        priceId,
+        successUrl,
+        cancelUrl
+      );
+    }
 
     if (!checkoutUrl) {
       return errorResponse("Failed to create checkout session", 500);
@@ -97,7 +139,7 @@ export async function POST(request: NextRequest) {
           status: "EXPIRED", // Will be activated by webhook
         },
       });
-    } else if (!subscription.stripeCustomerId) {
+    } else if (subscription.stripeCustomerId !== customerId) {
       await db.subscription.update({
         where: { userId: user.id },
         data: { stripeCustomerId: customerId },

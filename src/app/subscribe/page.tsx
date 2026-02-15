@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Check, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function SubscribePage() {
   const { user } = useUser();
@@ -28,13 +29,26 @@ export default function SubscribePage() {
         body: JSON.stringify({ plan }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
-      if (res.ok && data.data.url) {
-        window.location.href = data.data.url;
+      if (!res.ok) {
+        toast.error(
+          typeof data?.error === "string"
+            ? data.error
+            : "Unable to start checkout. Please try again."
+        );
+        return;
       }
+
+      if (typeof data?.data?.url === "string") {
+        window.location.href = data.data.url;
+        return;
+      }
+
+      toast.error("Checkout URL missing. Please try again.");
     } catch (error) {
       console.error("Subscription error:", error);
+      toast.error("Network error. Please try again.");
     } finally {
       setLoading(null);
     }
