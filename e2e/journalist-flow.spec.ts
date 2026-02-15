@@ -58,7 +58,7 @@ test.describe("Flow 3: Journalist Dashboard + Write", () => {
     // Tiptap inserts an <img src="..."> into the editor.
     const img = page.locator(".ProseMirror img").first();
     await expect(img).toBeVisible({ timeout: 20_000 });
-    await expect(img).toHaveAttribute("src", /vercel-storage\\.com/);
+    await expect(img).toHaveAttribute("src", /vercel-storage\.com/);
   });
 
   test("journalist can fill in article fields", async ({ page }) => {
