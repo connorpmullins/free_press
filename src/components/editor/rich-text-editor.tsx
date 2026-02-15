@@ -257,6 +257,7 @@ export function RichTextEditor({
         type="file"
         accept="image/jpeg,image/png,image/gif,image/webp"
         className="hidden"
+        data-testid="rte-image-input"
         onChange={onFileSelected}
       />
 
@@ -381,6 +382,7 @@ export function RichTextEditor({
             onClick={triggerImageUpload}
             disabled={uploading}
             title="Upload image"
+            data-testid="rte-upload-image"
           >
             <ImageIcon className="h-4 w-4" />
           </Button>

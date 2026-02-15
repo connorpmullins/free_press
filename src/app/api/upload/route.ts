@@ -12,14 +12,6 @@ const ALLOWED_TYPES = [
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 
-function isProductionDeployment() {
-  return process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production";
-}
-
-function fileToDataUrl(file: File, bytes: ArrayBuffer) {
-  return `data:${file.type};base64,${Buffer.from(bytes).toString("base64")}`;
-}
-
 // POST /api/upload - Upload an image to Vercel Blob
 export async function POST(request: NextRequest) {
   try {
@@ -43,18 +35,12 @@ export async function POST(request: NextRequest) {
       return errorResponse("File too large. Maximum size is 5 MB.", 400);
     }
 
-    // Without BLOB_READ_WRITE_TOKEN:
-    // - block only on real production deployments
-    // - allow preview/local authoring via inline data URL fallback
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      if (isProductionDeployment()) {
-        return errorResponse(
-          "Image upload is not configured. Set BLOB_READ_WRITE_TOKEN.",
-          503
-        );
-      }
-      const bytes = await file.arrayBuffer();
-      return successResponse({ url: fileToDataUrl(file, bytes) });
+      // This should be enforced at build time via next.config.ts.
+      return errorResponse(
+        "Image upload is not configured. Set BLOB_READ_WRITE_TOKEN.",
+        503
+      );
     }
 
     const blob = await put(`articles/${user.id}/${Date.now()}-${file.name}`, file, {

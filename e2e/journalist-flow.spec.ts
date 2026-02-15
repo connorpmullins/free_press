@@ -35,6 +35,32 @@ test.describe("Flow 3: Journalist Dashboard + Write", () => {
     await expect(page.getByTitle("Embed video (YouTube/Vimeo)")).toBeVisible();
   });
 
+  test("journalist can upload an image and it uses Vercel Blob", async ({ page }) => {
+    await loginAsJournalist(page);
+    await page.goto("/journalist/write");
+
+    // Trigger upload and attach file to hidden input
+    await page.getByTestId("rte-upload-image").click();
+    const input = page.getByTestId("rte-image-input");
+
+    const uploadResponsePromise = page.waitForResponse((res) => {
+      return res.url().includes("/api/upload") && res.request().method() === "POST";
+    });
+    await input.setInputFiles({
+      name: "e2e-test.jpg",
+      mimeType: "image/jpeg",
+      buffer: Buffer.from("fake-image-data"),
+    });
+
+    const uploadRes = await uploadResponsePromise;
+    expect(uploadRes.ok(), `Upload failed: ${uploadRes.status()} ${uploadRes.url()}`).toBeTruthy();
+
+    // Tiptap inserts an <img src="..."> into the editor.
+    const img = page.locator(".ProseMirror img").first();
+    await expect(img).toBeVisible({ timeout: 20_000 });
+    await expect(img).toHaveAttribute("src", /vercel-storage\\.com/);
+  });
+
   test("journalist can fill in article fields", async ({ page }) => {
     await loginAsJournalist(page);
     await page.goto("/journalist/write");

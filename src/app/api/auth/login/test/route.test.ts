@@ -9,6 +9,7 @@ vi.mock("@/lib/auth", () => ({
 describe("POST /api/auth/login/test", () => {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalDevFlag = process.env.ENABLE_DEV_LOGIN;
+  const originalVercelEnv = process.env.VERCEL_ENV;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -17,6 +18,7 @@ describe("POST /api/auth/login/test", () => {
   afterEach(() => {
     process.env.NODE_ENV = originalNodeEnv;
     process.env.ENABLE_DEV_LOGIN = originalDevFlag;
+    process.env.VERCEL_ENV = originalVercelEnv;
   });
 
   it("returns 404 when dev login flag is disabled", async () => {
@@ -35,8 +37,9 @@ describe("POST /api/auth/login/test", () => {
     expect(body.success).toBe(false);
   });
 
-  it("returns 404 in production regardless of flag", async () => {
+  it("returns 404 in Vercel production regardless of flag", async () => {
     process.env.NODE_ENV = "production";
+    process.env.VERCEL_ENV = "production";
     process.env.ENABLE_DEV_LOGIN = "true";
 
     const request = new NextRequest("http://localhost/api/auth/login/test", {
@@ -50,6 +53,24 @@ describe("POST /api/auth/login/test", () => {
 
   it("returns token when explicitly enabled in non-production", async () => {
     process.env.NODE_ENV = "development";
+    process.env.ENABLE_DEV_LOGIN = "true";
+
+    const request = new NextRequest("http://localhost/api/auth/login/test", {
+      method: "POST",
+      body: JSON.stringify({ email: "reader@example.com" }),
+    });
+
+    const response = await POST(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.data.token).toBe("test-token");
+  });
+
+  it("returns token in Vercel preview when explicitly enabled", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.VERCEL_ENV = "preview";
     process.env.ENABLE_DEV_LOGIN = "true";
 
     const request = new NextRequest("http://localhost/api/auth/login/test", {

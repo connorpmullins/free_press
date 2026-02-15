@@ -38,7 +38,6 @@ describe("POST /api/upload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.BLOB_READ_WRITE_TOKEN;
-    delete process.env.VERCEL_ENV;
   });
 
   it("rejects request with no file", async () => {
@@ -88,12 +87,7 @@ describe("POST /api/upload", () => {
     expect(body.error).toContain("too large");
   });
 
-  it("returns 503 when BLOB_READ_WRITE_TOKEN is not set in production deployment", async () => {
-    const origEnv = process.env.NODE_ENV;
-    const origVercelEnv = process.env.VERCEL_ENV;
-    process.env.NODE_ENV = "production";
-    process.env.VERCEL_ENV = "production";
-
+  it("returns 503 when BLOB_READ_WRITE_TOKEN is not set", async () => {
     const request = makeFileRequest({
       name: "photo.jpg",
       type: "image/jpeg",
@@ -105,50 +99,6 @@ describe("POST /api/upload", () => {
 
     expect(response.status).toBe(503);
     expect(body.error).toContain("not configured");
-
-    process.env.NODE_ENV = origEnv;
-    process.env.VERCEL_ENV = origVercelEnv;
-  });
-
-  it("uses inline fallback when BLOB_READ_WRITE_TOKEN is not set in development", async () => {
-    const origEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "development";
-
-    const request = makeFileRequest({
-      name: "photo.jpg",
-      type: "image/jpeg",
-      size: 1000,
-    });
-
-    const response = await POST(request);
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.data.url).toContain("data:image/jpeg;base64,");
-
-    process.env.NODE_ENV = origEnv;
-  });
-
-  it("uses inline fallback in Vercel preview when token is missing", async () => {
-    const origEnv = process.env.NODE_ENV;
-    const origVercelEnv = process.env.VERCEL_ENV;
-    process.env.NODE_ENV = "production";
-    process.env.VERCEL_ENV = "preview";
-
-    const request = makeFileRequest({
-      name: "photo.jpg",
-      type: "image/jpeg",
-      size: 1000,
-    });
-
-    const response = await POST(request);
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.data.url).toContain("data:image/jpeg;base64,");
-
-    process.env.NODE_ENV = origEnv;
-    process.env.VERCEL_ENV = origVercelEnv;
   });
 
   it("uploads successfully when configured", async () => {

@@ -3,7 +3,8 @@ import { createMagicLink } from "@/lib/auth";
 import { successResponse, errorResponse } from "@/lib/api";
 
 function isDevLoginEnabled(): boolean {
-  if (process.env.NODE_ENV === "production") return false;
+  // Allow in local dev and Vercel Preview only. Never allow in Vercel Production.
+  if (process.env.VERCEL_ENV === "production") return false;
   return process.env.ENABLE_DEV_LOGIN === "true";
 }
 

@@ -313,7 +313,7 @@ Pass criteria:
 2. Confirm the toolbar contains an "Upload image" button (camera icon) and an "Embed video" button (film icon).
 3. Click "Embed video" and enter a YouTube URL (e.g., `https://www.youtube.com/watch?v=dQw4w9WgXcQ`).
 4. Confirm a video embed block appears in the editor.
-5. Click "Upload image" — confirm a file picker dialog opens (actual upload requires `BLOB_READ_WRITE_TOKEN` to be configured).
+5. Click "Upload image" — confirm a file picker dialog opens and the image uploads successfully (requires `BLOB_READ_WRITE_TOKEN` to be configured).
 
 Pass criteria:
 - Both media toolbar buttons are present and functional.
@@ -366,4 +366,3 @@ When done, report:
 - Remaining risk (if any)
 
 Keep reports concise, but include enough detail for quick reproduction.
-
