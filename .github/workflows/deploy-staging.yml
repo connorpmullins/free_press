@@ -49,7 +49,7 @@ jobs:
 
           # db push without --accept-data-loss refuses destructive changes,
           # protecting staging data. Only additive changes are applied.
-          npx prisma db push --skip-generate
+          npx prisma db push
 
       - name: Build
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}

@@ -55,7 +55,7 @@ jobs:
           # db push without --accept-data-loss refuses destructive changes,
           # protecting production data. Only additive changes are applied.
           # If this step fails, handle the migration manually before re-running.
-          npx prisma db push --skip-generate
+          npx prisma db push
 
       - name: Build for Production
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
