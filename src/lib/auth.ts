@@ -105,13 +105,17 @@ export async function createSession(
     },
   });
 
-  // Also cache in Redis for fast lookups
-  await redis.set(
-    `session:${hashedToken}`,
-    JSON.stringify({ userId }),
-    "EX",
-    SESSION_TTL
-  );
+  // Also cache in Redis for fast lookups (non-critical — getSession falls back to DB)
+  try {
+    await redis.set(
+      `session:${hashedToken}`,
+      JSON.stringify({ userId }),
+      "EX",
+      SESSION_TTL
+    );
+  } catch (err) {
+    console.warn("Failed to cache session in Redis:", err);
+  }
 
   return token;
 }
@@ -181,7 +185,11 @@ export async function destroySession(): Promise<void> {
   if (sessionToken) {
     const hashedToken = hashToken(sessionToken);
     await db.session.deleteMany({ where: { token: hashedToken } });
-    await redis.del(`session:${hashedToken}`);
+    try {
+      await redis.del(`session:${hashedToken}`);
+    } catch (err) {
+      console.warn("Failed to remove session from Redis:", err);
+    }
   }
 
   cookieStore.delete(SESSION_COOKIE);
