@@ -40,8 +40,8 @@ test.describe("Flow 3: Journalist Dashboard + Write", () => {
     await page.goto("/journalist/write");
 
     // Trigger upload and attach file to hidden input
-    await page.getByTestId("rte-upload-image").click();
-    const input = page.getByTestId("rte-image-input");
+    await page.getByTitle("Upload image").click();
+    const input = page.locator('input[type="file"][accept*="image/jpeg"]');
 
     const uploadResponsePromise = page.waitForResponse((res) => {
       return res.url().includes("/api/upload") && res.request().method() === "POST";

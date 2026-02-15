@@ -5,9 +5,12 @@ import { Page, expect } from "@playwright/test";
  * and navigating to the verification URL.
  */
 export async function loginAs(page: Page, email: string): Promise<void> {
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
   // Get a magic link token via the dev-only test endpoint
   const res = await page.request.post("/api/auth/login/test", {
     data: { email },
+    // Middleware requires Origin/Referer for API mutations in production-mode deployments.
+    headers: { Origin: baseURL },
   });
 
   expect(res.ok()).toBeTruthy();
