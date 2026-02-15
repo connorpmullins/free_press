@@ -24,10 +24,8 @@ export function handleApiError(error: unknown) {
 
   if (error instanceof Error) {
     // Don't leak internal errors in production
-    const message =
-      process.env.NODE_ENV === "development"
-        ? error.message
-        : "Internal server error";
+    const isProd = process.env.VERCEL_ENV === "production";
+    const message = isProd ? "Internal server error" : error.message;
     return errorResponse(message, 500);
   }
 

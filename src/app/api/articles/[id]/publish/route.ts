@@ -117,8 +117,8 @@ export async function POST(
       });
     }
 
-    // Update journalist profile article count
-    await db.journalistProfile.update({
+    // Update journalist profile article count (if profile exists)
+    await db.journalistProfile.updateMany({
       where: { userId: user.id },
       data: { articleCount: { increment: 1 } },
     });

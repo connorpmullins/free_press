@@ -156,13 +156,17 @@ export async function getSession(): Promise<{
     return null;
   }
 
-  // Re-cache in Redis
-  await redis.set(
-    `session:${hashedToken}`,
-    JSON.stringify({ userId: session.userId }),
-    "EX",
-    SESSION_TTL
-  );
+  // Re-cache in Redis (non-critical — session already validated from DB)
+  try {
+    await redis.set(
+      `session:${hashedToken}`,
+      JSON.stringify({ userId: session.userId }),
+      "EX",
+      SESSION_TTL
+    );
+  } catch (err) {
+    console.warn("Failed to re-cache session in Redis:", err);
+  }
 
   return { user: session.user, sessionId: session.id };
 }
