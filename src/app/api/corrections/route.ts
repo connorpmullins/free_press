@@ -40,6 +40,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Bump article recency so corrected articles resurface in the feed
+    await db.article.update({
+      where: { id: data.articleId },
+      data: { lastCorrectedAt: new Date() },
+    });
+
     // Process reputation impact
     await processCorrectionReputation(user.id, data.severity, data.articleId);
 

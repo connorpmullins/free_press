@@ -82,6 +82,8 @@ function WriteArticleContent() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loadingDraft, setLoadingDraft] = useState(false);
+  const [articleStatus, setArticleStatus] = useState<string>("DRAFT");
+  const [changeNote, setChangeNote] = useState("");
 
   useEffect(() => {
     if (!editId) return;
@@ -96,6 +98,7 @@ function WriteArticleContent() {
         setSummary(article.summary ?? "");
         setContentJson(article.content ?? null);
         setContentText(article.contentText ?? "");
+        if (article.status) setArticleStatus(article.status);
         if (article.sources && article.sources.length > 0) {
           setSources(
             article.sources.map((s: Record<string, unknown>) => ({
@@ -179,6 +182,8 @@ function WriteArticleContent() {
     return false;
   }
 
+  const isPublished = articleStatus === "PUBLISHED";
+
   async function handleSave() {
     setSaving(true);
     setError(null);
@@ -189,28 +194,40 @@ function WriteArticleContent() {
     }
 
     try {
+      const payload: Record<string, unknown> = {
+        title,
+        summary,
+        content: contentJson,
+        contentText,
+        sources: sources.filter((s) => s.title),
+      };
+
+      // Published articles require a change note
+      if (isPublished && editId) {
+        if (!changeNote.trim()) {
+          setFieldErrors({ changeNote: "A change note is required when updating a published article." });
+          setSaving(false);
+          return;
+        }
+        payload.changeNote = changeNote;
+      }
+
       const res = await fetch(editId ? `/api/articles/${editId}` : "/api/articles", {
         method: editId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          summary,
-          content: contentJson,
-          contentText,
-          sources: sources.filter((s) => s.title),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        toast.success(editId ? "Draft updated" : "Article saved as draft");
+        toast.success(isPublished ? "Article updated" : editId ? "Draft updated" : "Article saved as draft");
         router.push("/journalist/dashboard");
       } else {
-        setError(`Error saving draft: ${data.error || "Failed to save article"}`);
+        setError(`Error saving: ${data.error || "Failed to save article"}`);
       }
     } catch {
-      setError("Error saving draft: Network error. Please try again.");
+      setError("Error saving: Network error. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -222,6 +239,40 @@ function WriteArticleContent() {
     setFieldErrors({});
     if (!validate()) {
       setPublishing(false);
+      return;
+    }
+
+    // For published articles, "Publish" becomes "Update" — just save with changeNote
+    if (isPublished && editId) {
+      if (!changeNote.trim()) {
+        setFieldErrors({ changeNote: "A change note is required when updating a published article." });
+        setPublishing(false);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/articles/${editId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            summary,
+            content: contentJson,
+            contentText,
+            changeNote,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          toast.success("Article updated");
+          router.push("/journalist/dashboard");
+        } else {
+          setError(`Error updating: ${data.error || "Failed to update article"}`);
+        }
+      } catch {
+        setError("Error updating: Network error. Please try again.");
+      } finally {
+        setPublishing(false);
+      }
       return;
     }
 
@@ -497,21 +548,44 @@ function WriteArticleContent() {
           </CardContent>
         </Card>
 
+        {/* Change note (required for published articles) */}
+        {isPublished && (
+          <div className="space-y-2">
+            <Label htmlFor="changeNote">Change Note (required)</Label>
+            <Textarea
+              id="changeNote"
+              placeholder="Describe what changed in this update"
+              value={changeNote}
+              onChange={(e) => setChangeNote(e.target.value)}
+              maxLength={500}
+              rows={2}
+            />
+            <p className="text-xs text-muted-foreground">
+              This will be visible in the article&apos;s version history.
+            </p>
+            {fieldErrors.changeNote && (
+              <p className="text-sm text-destructive">{fieldErrors.changeNote}</p>
+            )}
+          </div>
+        )}
+
         {/* Actions */}
         <div className="pt-4 border-t space-y-3">
           <div className="flex gap-3 justify-end">
-            <Button
-              variant="outline"
-              onClick={handleSave}
-              disabled={saving || publishing}
-            >
-              {saving ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-2 h-4 w-4" />
-              )}
-              Save Draft
-            </Button>
+            {!isPublished && (
+              <Button
+                variant="outline"
+                onClick={handleSave}
+                disabled={saving || publishing}
+              >
+                {saving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="mr-2 h-4 w-4" />
+                )}
+                Save Draft
+              </Button>
+            )}
             <Button
               onClick={handlePublish}
               disabled={saving || publishing}
@@ -521,7 +595,7 @@ function WriteArticleContent() {
               ) : (
                 <Send className="mr-2 h-4 w-4" />
               )}
-              Publish
+              {isPublished ? "Update Article" : "Publish"}
             </Button>
           </div>
           {(error || Object.keys(fieldErrors).length > 0) && (

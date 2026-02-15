@@ -35,12 +35,24 @@ export async function POST(request: NextRequest) {
       return errorResponse("File too large. Maximum size is 5 MB.", 400);
     }
 
-    // In development without BLOB_READ_WRITE_TOKEN, return a placeholder
+    // Without BLOB_READ_WRITE_TOKEN: 503 in production, local fallback in dev
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return errorResponse(
-        "Image upload is not configured. Set BLOB_READ_WRITE_TOKEN.",
-        503
-      );
+      if (process.env.NODE_ENV === "production") {
+        return errorResponse(
+          "Image upload is not configured. Set BLOB_READ_WRITE_TOKEN.",
+          503
+        );
+      }
+
+      // Dev fallback: save to public/uploads/ and return a local URL
+      const bytes = await file.arrayBuffer();
+      const filename = `${Date.now()}-${file.name}`;
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const dir = path.join(process.cwd(), "public", "uploads");
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(path.join(dir, filename), Buffer.from(bytes));
+      return successResponse({ url: `/uploads/${filename}` });
     }
 
     const blob = await put(`articles/${user.id}/${Date.now()}-${file.name}`, file, {

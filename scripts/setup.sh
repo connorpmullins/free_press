@@ -51,9 +51,10 @@ npx prisma generate
 echo "Seeding database..."
 npx tsx prisma/seed.ts
 
-# Initialize Meilisearch indexes
-echo "Initializing search indexes..."
-npx tsx scripts/init-search.ts 2>/dev/null || echo "  (search indexes will be created on first use)"
+echo ""
+echo "  Note: Meilisearch indexes are auto-initialized when"
+echo "  the dev server starts (via instrumentation.ts)."
+echo "  The seed script above already synced data to search."
 
 echo ""
 echo "=============================================="

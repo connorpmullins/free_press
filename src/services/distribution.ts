@@ -139,9 +139,11 @@ export async function getFeed(options?: {
   const rankedArticles: RankedArticle[] = articles
     .map((article) => {
       const profile = article.author.journalistProfile;
-      const ageHours =
-        (now.getTime() - (article.publishedAt?.getTime() || now.getTime())) /
-        (1000 * 60 * 60);
+      // Use the most recent of publishedAt or lastCorrectedAt for recency
+      const publishedTime = article.publishedAt?.getTime() || now.getTime();
+      const correctedTime = article.lastCorrectedAt?.getTime() || 0;
+      const effectiveTime = Math.max(publishedTime, correctedTime);
+      const ageHours = (now.getTime() - effectiveTime) / (1000 * 60 * 60);
 
       // Calculate label penalties
       const labelPenalties = article.integrityLabels.reduce((sum, label) => {

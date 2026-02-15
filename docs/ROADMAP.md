@@ -9,8 +9,8 @@
 
 **Live URL:** https://warrant.ink
 **Database:** Neon Postgres (connected via Vercel Marketplace)
-**Unit Tests:** 142 passing (`npm run test`)
-**E2E Tests:** 32 passing (`npm run test:e2e`) — Playwright, Flows 1-8 from runbook
+**Unit Tests:** 161 passing (`npm run test`)
+**E2E Tests:** 36+ passing (`npm run test:e2e`) — Playwright, Flows 1-8 + 3d/3e from runbook
 **Build:** Passing (`npm run build`)
 
 ### Features
@@ -29,8 +29,9 @@
 | Feedback | `/feedback` | Feature requests + voting |
 | Bookmarks | `/bookmarks` | Auth-protected |
 | Author profile | `/author/[id]` | Bio, reputation, articles |
-| Journalist dashboard | `/journalist/dashboard` | Auth-protected, article list |
-| Article editor | `/journalist/write` | Tiptap rich text editor, source fields, save/publish |
+| Journalist dashboard | `/journalist/dashboard` | Auth-protected, article list, edit/delete/withdraw actions |
+| Article editor | `/journalist/write` | Tiptap rich text editor, source fields, save/publish/update |
+| Article lifecycle | `/article/[slug]` | Tombstone for withdrawn articles, correction form for authors, corrections at top |
 | Journalist revenue | `/journalist/revenue` | Revenue history, paid/pending earnings |
 | Admin dashboard | `/admin` | Stats, flag queue, disputes |
 | Admin flags | `/admin/flags` | Flag review with uphold/dismiss + review notes |
@@ -54,6 +55,7 @@
 | Revenue signal | Done | Read tracking + audit-based revenue calculation |
 | Playwright E2E | Done | 32 tests covering Flows 1-8 from E2E runbook |
 | Stripe Billing completeness | Done | Customer Portal, dynamic payment methods, session_id success page, invoice.paid/failed webhooks |
+| Article lifecycle management | Done | Delete drafts, withdraw published (tombstone), edit published (versioned + changeNote), issue corrections UI, correction recency bump in feed |
 
 ### Services Configured
 
@@ -108,7 +110,7 @@ All items below are **code-complete** (env var wiring, client libraries, fallbac
 
 - [ ] Production Meilisearch instance provisioned
 - [ ] `MEILISEARCH_HOST` + `MEILISEARCH_API_KEY` set in Vercel
-- [ ] `npm run search:backfill` executed against production content set
+- [ ] Verify `instrumentation.ts` initializes indexes on first deploy
 
 **Problem:** Search page exists but articles aren't synced to any search index in production.
 **Fix:** Create Meilisearch Cloud instance, set env vars on Vercel, run backfill.
@@ -192,5 +194,5 @@ npm run dev             # Start Next.js dev server
 npm run test            # Run 142+ unit tests
 npm run test:e2e        # Run 32+ Playwright E2E tests
 npm run db:reset        # Reset + re-seed database
-npm run search:backfill # Backfill Meilisearch index
+npm run db:seed         # Seeds DB + syncs Meilisearch
 ```

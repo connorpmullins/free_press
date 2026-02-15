@@ -87,7 +87,10 @@ describe("POST /api/upload", () => {
     expect(body.error).toContain("too large");
   });
 
-  it("returns 503 when BLOB_READ_WRITE_TOKEN is not set", async () => {
+  it("returns 503 when BLOB_READ_WRITE_TOKEN is not set in production", async () => {
+    const origEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+
     const request = makeFileRequest({
       name: "photo.jpg",
       type: "image/jpeg",
@@ -99,6 +102,27 @@ describe("POST /api/upload", () => {
 
     expect(response.status).toBe(503);
     expect(body.error).toContain("not configured");
+
+    process.env.NODE_ENV = origEnv;
+  });
+
+  it("uses dev fallback when BLOB_READ_WRITE_TOKEN is not set in development", async () => {
+    const origEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "development";
+
+    const request = makeFileRequest({
+      name: "photo.jpg",
+      type: "image/jpeg",
+      size: 1000,
+    });
+
+    const response = await POST(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.url).toContain("/uploads/");
+
+    process.env.NODE_ENV = origEnv;
   });
 
   it("uploads successfully when configured", async () => {

@@ -14,6 +14,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   CheckCircle,
   AlertTriangle,
@@ -26,9 +35,12 @@ import {
   Lock,
   Clock,
   Shield,
+  Ban,
+  Loader2,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useUser } from "@/components/providers";
+import { toast } from "sonner";
 
 interface ArticleData {
   id: string;
@@ -148,6 +160,9 @@ export default function ArticlePage({
   const [article, setArticle] = useState<ArticleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [bookmarked, setBookmarked] = useState(false);
+  const [correctionContent, setCorrectionContent] = useState("");
+  const [correctionSeverity, setCorrectionSeverity] = useState("TYPO");
+  const [submittingCorrection, setSubmittingCorrection] = useState(false);
 
   useEffect(() => {
     async function fetchArticle() {
@@ -210,6 +225,71 @@ export default function ArticlePage({
       </div>
     );
   }
+
+  // Tombstone view for withdrawn articles
+  if (article.status === "REMOVED") {
+    return (
+      <div className="container max-w-3xl mx-auto px-4 py-20 text-center">
+        <Ban className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Article Withdrawn</h1>
+        <p className="text-muted-foreground mb-2">
+          This article was withdrawn by the author.
+        </p>
+        <p className="text-sm text-muted-foreground mb-6">
+          Originally published by{" "}
+          <Link href={`/author/${article.author.pseudonym}`} className="text-primary hover:underline">
+            {article.author.pseudonym}
+          </Link>
+          {article.publishedAt && (
+            <> on {format(new Date(article.publishedAt), "MMM d, yyyy")}</>
+          )}
+        </p>
+        <Link href="/feed">
+          <Button variant="outline">Back to feed</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  async function handleSubmitCorrection() {
+    if (!article) return;
+    if (correctionContent.trim().length < 10) {
+      toast.error("Correction must be at least 10 characters.");
+      return;
+    }
+    setSubmittingCorrection(true);
+    try {
+      const res = await fetch("/api/corrections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articleId: article.id,
+          content: correctionContent,
+          severity: correctionSeverity,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Correction issued successfully");
+        setCorrectionContent("");
+        setCorrectionSeverity("TYPO");
+        // Refresh article data to show the new correction
+        const refreshRes = await fetch(`/api/articles/${slug}`);
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          setArticle(refreshData.data);
+        }
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to issue correction");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setSubmittingCorrection(false);
+    }
+  }
+
+  const isAuthor = user?.id === article.author.id;
 
   const authorInitials = article.author.pseudonym
     .split(" ")
@@ -317,6 +397,38 @@ export default function ArticlePage({
       </div>
 
       <Separator className="mb-8" />
+
+      {/* Corrections — shown at top before content */}
+      {article.corrections.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileEdit className="h-4 w-4" />
+              Corrections
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-3">
+              {article.corrections.map((correction) => (
+                <li
+                  key={correction.id}
+                  className="border-l-2 border-amber-400 pl-3"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="outline" className="text-xs">
+                      {correction.severity}
+                    </Badge>
+                    <time className="text-xs text-muted-foreground">
+                      {format(new Date(correction.createdAt), "MMM d, yyyy")}
+                    </time>
+                  </div>
+                  <p className="text-sm">{correction.content}</p>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Content */}
       {article.contentPreview ? (
@@ -428,34 +540,52 @@ export default function ArticlePage({
         </CardContent>
       </Card>
 
-      {/* Corrections */}
-      {article.corrections.length > 0 && (
+      {/* Issue Correction form — visible only to the article's author */}
+      {isAuthor && article.status === "PUBLISHED" && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <FileEdit className="h-4 w-4" />
-              Corrections
-            </CardTitle>
+            <CardTitle className="text-base">Issue a Correction</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {article.corrections.map((correction) => (
-                <li
-                  key={correction.id}
-                  className="border-l-2 border-amber-400 pl-3"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-xs">
-                      {correction.severity}
-                    </Badge>
-                    <time className="text-xs text-muted-foreground">
-                      {format(new Date(correction.createdAt), "MMM d, yyyy")}
-                    </time>
-                  </div>
-                  <p className="text-sm">{correction.content}</p>
-                </li>
-              ))}
-            </ul>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="correction-severity">Severity</Label>
+              <Select value={correctionSeverity} onValueChange={setCorrectionSeverity}>
+                <SelectTrigger id="correction-severity">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TYPO">Typo</SelectItem>
+                  <SelectItem value="CLARIFICATION">Clarification</SelectItem>
+                  <SelectItem value="FACTUAL_ERROR">Factual Error</SelectItem>
+                  <SelectItem value="MATERIAL_ERROR">Material Error</SelectItem>
+                  <SelectItem value="RETRACTION">Retraction</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="correction-content">Correction Details</Label>
+              <Textarea
+                id="correction-content"
+                placeholder="Describe the correction (min 10 characters)"
+                value={correctionContent}
+                onChange={(e) => setCorrectionContent(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <Button
+              onClick={handleSubmitCorrection}
+              disabled={submittingCorrection || correctionContent.trim().length < 10}
+            >
+              {submittingCorrection ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileEdit className="mr-2 h-4 w-4" />
+              )}
+              Submit Correction
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Corrections are public and affect your reputation score. Voluntary corrections for minor issues have minimal impact.
+            </p>
           </CardContent>
         </Card>
       )}

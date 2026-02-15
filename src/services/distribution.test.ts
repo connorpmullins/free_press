@@ -143,5 +143,41 @@ describe("Distribution Service", () => {
       expect(score).toBeLessThanOrEqual(100);
       expect(score).toBeGreaterThan(0);
     });
+
+    it("correction recency bump: fresh correction resets recency bonus for old article", () => {
+      // An article published 100 hours ago — no recency bonus
+      const oldArticle = calculateDistributionScore({
+        ...baseFactors,
+        ageHours: 100,
+      });
+
+      // The same article but with ageHours recalculated from a fresh correction (0 hours)
+      const correctedArticle = calculateDistributionScore({
+        ...baseFactors,
+        ageHours: 0, // lastCorrectedAt is now, so effective age = 0
+      });
+
+      // The corrected article should score higher due to recency boost
+      expect(correctedArticle).toBeGreaterThan(oldArticle);
+      // Specifically, the difference should be the full recency bonus (20 points)
+      expect(correctedArticle - oldArticle).toBeCloseTo(20, 1);
+    });
+
+    it("correction recency bump: old correction provides no boost", () => {
+      // Article published 100h ago, corrected 100h ago — effective age still 100h
+      const oldCorrected = calculateDistributionScore({
+        ...baseFactors,
+        ageHours: 100, // max(publishedAt, lastCorrectedAt) is still old
+      });
+
+      // Article published 100h ago, no correction
+      const neverCorrected = calculateDistributionScore({
+        ...baseFactors,
+        ageHours: 100,
+      });
+
+      // No difference — both are past the 72h recency window
+      expect(oldCorrected).toBe(neverCorrected);
+    });
   });
 });

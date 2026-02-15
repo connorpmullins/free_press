@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -1318,6 +1319,85 @@ async function main() {
   console.log("  Created flags, disputes, corrections, bookmarks");
   console.log("  Created 3 feature requests with votes");
   console.log("  Created read tracking events for revenue testing");
+
+  // ============================================================
+  // Sync published articles to Meilisearch
+  // ============================================================
+  const meiliHost = process.env.MEILISEARCH_HOST;
+  const meiliKey = process.env.MEILISEARCH_API_KEY;
+  if (meiliHost) {
+    try {
+      const { MeiliSearch } = await import("meilisearch");
+      const meili = new MeiliSearch({ host: meiliHost, apiKey: meiliKey });
+
+      // Ensure index exists with correct settings
+      try { await meili.createIndex("articles", { primaryKey: "id" }); } catch { /* exists */ }
+      const idx = meili.index("articles");
+      await idx.updateSettings({
+        searchableAttributes: ["title", "summary", "contentText", "authorName"],
+        filterableAttributes: ["status", "authorId", "publishedAt", "integrityLabels"],
+        sortableAttributes: ["publishedAt", "reputationScore"],
+      });
+
+      // Index all published articles
+      const published = await prisma.article.findMany({
+        where: { status: "PUBLISHED" },
+        include: {
+          author: { include: { journalistProfile: { select: { pseudonym: true, reputationScore: true } } } },
+          integrityLabels: { where: { active: true }, select: { labelType: true } },
+        },
+      });
+
+      const docs = published.map((a) => ({
+        id: a.id,
+        title: a.title,
+        summary: a.summary,
+        contentText: a.contentText,
+        authorId: a.authorId,
+        authorName: a.author.journalistProfile?.pseudonym ?? "Unknown",
+        status: a.status,
+        publishedAt: a.publishedAt?.toISOString() ?? null,
+        integrityLabels: a.integrityLabels.map((l) => l.labelType),
+        reputationScore: a.author.journalistProfile?.reputationScore ?? 50,
+      }));
+
+      if (docs.length > 0) {
+        await idx.addDocuments(docs);
+      }
+
+      // Also sync authors
+      try { await meili.createIndex("authors", { primaryKey: "id" }); } catch { /* exists */ }
+      const authIdx = meili.index("authors");
+      await authIdx.updateSettings({
+        searchableAttributes: ["pseudonym", "bio", "beats"],
+        filterableAttributes: ["verificationStatus", "reputationScore"],
+        sortableAttributes: ["reputationScore", "articleCount"],
+      });
+
+      const profiles = await prisma.journalistProfile.findMany({
+        include: { user: { select: { email: true } } },
+      });
+      const authorDocs = profiles.map((p) => ({
+        id: p.id,
+        pseudonym: p.pseudonym,
+        bio: p.bio,
+        beats: p.beats,
+        reputationScore: p.reputationScore,
+        verificationStatus: p.verificationStatus,
+        articleCount: p.articleCount,
+      }));
+      if (authorDocs.length > 0) {
+        await authIdx.addDocuments(authorDocs);
+      }
+
+      console.log(`  Synced ${docs.length} articles and ${authorDocs.length} authors to Meilisearch`);
+    } catch (e) {
+      console.warn("  ⚠ Meilisearch sync skipped:", (e as Error).message);
+    }
+  } else {
+    console.log("  ⚠ MEILISEARCH_HOST not set — skipping search sync");
+  }
+
   console.log("");
   console.log("=== Seed Complete ===");
   console.log("");

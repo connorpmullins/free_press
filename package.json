@@ -14,8 +14,6 @@
     "db:seed": "npx tsx prisma/seed.ts",
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma db push --force-reset && npx tsx prisma/seed.ts",
-    "search:init": "npx tsx scripts/init-search.ts",
-    "search:backfill": "npx tsx scripts/backfill-search.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npx playwright test",

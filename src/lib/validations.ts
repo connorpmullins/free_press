@@ -126,6 +126,17 @@ export const createCorrectionSchema = z.object({
 });
 
 // ============================================================
+// Withdraw
+// ============================================================
+
+export const withdrawArticleSchema = z.object({
+  reason: z
+    .string()
+    .min(10, "Withdrawal reason must be at least 10 characters")
+    .max(2000),
+});
+
+// ============================================================
 // Disputes
 // ============================================================
 

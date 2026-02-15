@@ -54,6 +54,7 @@ export const mockPrismaClient = {
     findMany: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
     count: vi.fn(),
   },
   articleVersion: {
@@ -252,6 +253,7 @@ vi.mock("@/lib/search", () => ({
   initializeSearchIndexes: vi.fn(),
   indexArticle: vi.fn(),
   removeArticleFromIndex: vi.fn(),
+  syncArticleInSearch: vi.fn().mockResolvedValue(undefined),
   searchArticles: vi.fn().mockResolvedValue({ hits: [], totalHits: 0 }),
   searchAuthors: vi.fn().mockResolvedValue({ hits: [], totalHits: 0 }),
 }));

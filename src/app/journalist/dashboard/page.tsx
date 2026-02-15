@@ -14,6 +14,19 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import {
   PenSquare,
   FileText,
   Shield,
@@ -21,6 +34,9 @@ import {
   DollarSign,
   AlertTriangle,
   CheckCircle,
+  Pencil,
+  Trash2,
+  XCircle,
 } from "lucide-react";
 
 interface Article {
@@ -41,6 +57,48 @@ export default function JournalistDashboardPage() {
   const { user, loading: authLoading } = useUser();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [withdrawReason, setWithdrawReason] = useState("");
+
+  async function handleDelete(articleId: string) {
+    try {
+      const res = await fetch(`/api/articles/${articleId}`, { method: "DELETE" });
+      if (res.ok) {
+        setArticles((prev) => prev.filter((a) => a.id !== articleId));
+        toast.success("Draft deleted");
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to delete article");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    }
+  }
+
+  async function handleWithdraw(articleId: string) {
+    if (!withdrawReason || withdrawReason.trim().length < 10) {
+      toast.error("Please provide a withdrawal reason (at least 10 characters).");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/articles/${articleId}/withdraw`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: withdrawReason }),
+      });
+      if (res.ok) {
+        setArticles((prev) =>
+          prev.map((a) => (a.id === articleId ? { ...a, status: "REMOVED" } : a))
+        );
+        setWithdrawReason("");
+        toast.success("Article withdrawn");
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to withdraw article");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    }
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -260,6 +318,8 @@ export default function JournalistDashboardPage() {
                           href={
                             article.status === "PUBLISHED"
                               ? `/article/${article.slug}`
+                              : article.status === "REMOVED"
+                              ? `/article/${article.slug}`
                               : `/journalist/write?edit=${article.id}`
                           }
                           className="font-medium hover:underline truncate block"
@@ -290,7 +350,82 @@ export default function JournalistDashboardPage() {
                           )}
                         </div>
                       </div>
-                      <div className="text-xs text-muted-foreground text-right">
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-1">
+                        {/* Edit — available for drafts and published */}
+                        {["DRAFT", "SUBMITTED", "PUBLISHED"].includes(article.status) && (
+                          <Link href={`/journalist/write?edit=${article.id}`}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        )}
+
+                        {/* Delete — only for drafts */}
+                        {["DRAFT", "SUBMITTED"].includes(article.status) && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Delete draft">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete draft?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete &ldquo;{article.title}&rdquo;. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(article.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+
+                        {/* Withdraw — only for published */}
+                        {article.status === "PUBLISHED" && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Withdraw article">
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Withdraw article?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will remove &ldquo;{article.title}&rdquo; from the feed and replace it with a withdrawal notice. The URL will remain accessible as a tombstone. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <Textarea
+                                placeholder="Reason for withdrawal (required, min 10 chars)"
+                                value={withdrawReason}
+                                onChange={(e) => setWithdrawReason(e.target.value)}
+                                className="mt-2"
+                              />
+                              <AlertDialogFooter>
+                                <AlertDialogCancel onClick={() => setWithdrawReason("")}>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleWithdraw(article.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Withdraw
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-muted-foreground text-right whitespace-nowrap">
                         {article.publishedAt
                           ? new Date(article.publishedAt).toLocaleDateString()
                           : new Date(article.createdAt).toLocaleDateString()}

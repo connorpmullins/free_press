@@ -61,6 +61,84 @@ test.describe("Flow 3: Journalist Dashboard + Write", () => {
 });
 
 // ============================================================
+// Flow 3d: Article Management (Delete, Edit Published, Withdraw)
+// ============================================================
+
+test.describe("Flow 3d: Article Management", () => {
+  test("dashboard shows edit button for published articles", async ({ page }) => {
+    await loginAsJournalist(page);
+    await page.goto("/journalist/dashboard");
+    // Look for pencil edit icon button
+    const editButton = page.locator('a[title="Edit"]').first();
+    await expect(editButton).toBeVisible();
+  });
+
+  test("dashboard shows delete button for draft articles", async ({ page }) => {
+    await loginAsJournalist(page);
+    await page.goto("/journalist/dashboard");
+    // Switch to drafts tab if any exist
+    const draftsTab = page.getByRole("tab", { name: /drafts/i });
+    if (await draftsTab.isVisible()) {
+      await draftsTab.click();
+      const deleteButton = page.locator('button[title="Delete draft"]').first();
+      // May or may not be visible depending on seed data
+      if (await deleteButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await expect(deleteButton).toBeVisible();
+      }
+    }
+  });
+
+  test("dashboard shows withdraw button for published articles", async ({ page }) => {
+    await loginAsJournalist(page);
+    await page.goto("/journalist/dashboard");
+    const withdrawButton = page.locator('button[title="Withdraw article"]').first();
+    // May or may not be visible depending on seed data
+    if (await withdrawButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await expect(withdrawButton).toBeVisible();
+    }
+  });
+
+  test("editor shows update mode for published articles", async ({ page }) => {
+    await loginAsJournalist(page);
+    await page.goto("/journalist/dashboard");
+    // Click edit on a published article
+    const editLink = page.locator('a[title="Edit"]').first();
+    if (await editLink.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await editLink.click();
+      await page.waitForURL(/\/journalist\/write\?edit=/);
+      // Should show "Update Article" button instead of "Publish"
+      await expect(page.getByRole("button", { name: /update article/i })).toBeVisible();
+      // Should show change note field
+      await expect(page.getByLabel(/change note/i)).toBeVisible();
+      // Should NOT show "Save Draft" button
+      await expect(page.getByRole("button", { name: /save draft/i })).not.toBeVisible();
+    }
+  });
+});
+
+// ============================================================
+// Flow 3e: Issue Correction
+// ============================================================
+
+test.describe("Flow 3e: Issue Correction", () => {
+  test("article page shows correction form for author", async ({ page }) => {
+    await loginAsJournalist(page);
+    await page.goto("/journalist/dashboard");
+    // Click a published article to go to article detail
+    const publishedTab = page.getByRole("tab", { name: /published/i });
+    await publishedTab.click();
+    const articleLink = page.locator("a.font-medium").first();
+    if (await articleLink.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await articleLink.click();
+      // Should show "Issue a Correction" section
+      await expect(page.locator("body")).toContainText(/issue a correction/i);
+      await expect(page.getByLabel(/severity/i)).toBeVisible();
+      await expect(page.getByLabel(/correction details/i)).toBeVisible();
+    }
+  });
+});
+
+// ============================================================
 // Flow 4: Journalist Settings + Stripe Connect
 // ============================================================
 

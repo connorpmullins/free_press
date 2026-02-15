@@ -137,9 +137,10 @@ model Article {
   contentText   String        // Plain text for search indexing
   status        ArticleStatus @default(DRAFT)
   version       Int           @default(1)
-  publishedAt   DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  publishedAt      DateTime?
+  lastCorrectedAt  DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   // Integrity metadata
   sourceComplete  Boolean @default(false)

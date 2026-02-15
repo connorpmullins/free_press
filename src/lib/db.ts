@@ -4,7 +4,13 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  prismaSchemaVersion: string | undefined;
 };
+
+// Bump this version when the Prisma schema changes to bust the globalThis cache
+// during development hot-reloads. The stale PrismaClient on globalThis otherwise
+// survives Turbopack rebuilds and causes "column does not exist" errors.
+const SCHEMA_VERSION = "2";
 
 function createPrismaClient(): PrismaClient {
   const connectionString =
@@ -20,6 +26,11 @@ function createPrismaClient(): PrismaClient {
         ? ["query", "error", "warn"]
         : ["error"],
   });
+}
+
+if (globalForPrisma.prismaSchemaVersion !== SCHEMA_VERSION) {
+  globalForPrisma.prisma = undefined;
+  globalForPrisma.prismaSchemaVersion = SCHEMA_VERSION;
 }
 
 export const db = globalForPrisma.prisma ?? createPrismaClient();

@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { updateArticleSchema } from "@/lib/validations";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api";
 import { auditLog } from "@/lib/audit";
-import { syncArticleInSearch } from "@/lib/search";
+import { syncArticleInSearch, removeArticleFromIndex } from "@/lib/search";
 
 // GET /api/articles/[id] - Get single article
 export async function GET(
@@ -64,11 +64,11 @@ export async function GET(
       return errorResponse("Article not found", 404);
     }
 
-    // Only published articles are public (unless author or admin)
+    // Only published/removed articles are public (unless author or admin)
     const isAuthor = session?.user.id === article.authorId;
     const isAdmin = session?.user.role === "ADMIN";
 
-    if (article.status !== "PUBLISHED" && !isAuthor && !isAdmin) {
+    if (!["PUBLISHED", "REMOVED"].includes(article.status) && !isAuthor && !isAdmin) {
       return errorResponse("Article not found", 404);
     }
 
@@ -148,12 +148,21 @@ export async function PATCH(
       return errorResponse("Not authorized", 403);
     }
 
-    // Only drafts and submitted can be edited
-    if (!["DRAFT", "SUBMITTED"].includes(article.status) && user.role !== "ADMIN") {
+    // Drafts and submitted can be freely edited; published articles require a changeNote
+    if (!["DRAFT", "SUBMITTED", "PUBLISHED"].includes(article.status) && user.role !== "ADMIN") {
       return errorResponse(
-        "Published articles cannot be directly edited. Issue a correction instead.",
+        "This article cannot be edited in its current state.",
         400
       );
+    }
+
+    if (article.status === "PUBLISHED" && user.role !== "ADMIN") {
+      if (!data.changeNote || data.changeNote.trim().length === 0) {
+        return errorResponse(
+          "A change note is required when editing a published article.",
+          400
+        );
+      }
     }
 
     const newVersion = article.version + 1;
@@ -205,6 +214,57 @@ export async function PATCH(
     }
 
     return successResponse({ article: { id: updated.id, version: newVersion } });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+// DELETE /api/articles/[id] - Delete draft article (author only)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const user = await requireAuth();
+
+    const article = await db.article.findUnique({ where: { id } });
+
+    if (!article) {
+      return errorResponse("Article not found", 404);
+    }
+
+    if (article.authorId !== user.id && user.role !== "ADMIN") {
+      return errorResponse("Not authorized", 403);
+    }
+
+    // Only drafts and submitted articles can be deleted
+    if (!["DRAFT", "SUBMITTED"].includes(article.status)) {
+      return errorResponse(
+        "Only draft or submitted articles can be deleted. Use withdraw for published articles.",
+        400
+      );
+    }
+
+    // Hard delete — cascaded relations (versions, sources) are cleaned up by Prisma
+    await db.article.delete({ where: { id } });
+
+    // Remove from search index if it was somehow indexed
+    try {
+      await removeArticleFromIndex(id);
+    } catch {
+      // Ignore search index errors
+    }
+
+    await auditLog({
+      userId: user.id,
+      action: "article_deleted",
+      entity: "Article",
+      entityId: id,
+      details: { title: article.title, previousStatus: article.status },
+    });
+
+    return successResponse({ deleted: true });
   } catch (error) {
     return handleApiError(error);
   }

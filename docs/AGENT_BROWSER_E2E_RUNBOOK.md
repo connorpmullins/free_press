@@ -158,6 +158,71 @@ Pass criteria:
 - No crash, blank page, or 5xx during the flow.
 - Published article renders the image correctly.
 
+## Flow 3d: Article Management (Delete, Edit Published, Withdraw)
+
+Goal: verify journalists can delete drafts, edit published articles, and withdraw published articles.
+
+1. Log in as `elena.vasquez@example.com`.
+2. Open `/journalist/dashboard`.
+3. Confirm action buttons are visible:
+   - **Edit** (pencil icon) on published and draft articles.
+   - **Delete** (trash icon) on draft articles only.
+   - **Withdraw** (X-circle icon) on published articles only.
+4. **Delete a draft:**
+   - Click the trash icon on a draft article.
+   - Confirm the deletion dialog appears with the article title.
+   - Click "Delete".
+   - Confirm the article disappears from the list and a success toast appears.
+5. **Edit a published article:**
+   - Click the edit (pencil) icon on a published article.
+   - Confirm browser navigates to `/journalist/write?edit=<id>`.
+   - Confirm the editor shows "Update Article" button (not "Publish").
+   - Confirm the "Save Draft" button is NOT shown.
+   - Confirm a "Change Note" textarea is visible and labeled as required.
+   - Enter a change note and click "Update Article".
+   - Confirm `PATCH /api/articles/<id>` returns 200.
+   - Confirm redirect to dashboard with success toast.
+6. **Withdraw a published article:**
+   - Click the withdraw (X-circle) icon on a published article.
+   - Confirm the withdrawal dialog appears with reason textarea.
+   - Enter a reason (≥10 chars) and click "Withdraw".
+   - Confirm `POST /api/articles/<id>/withdraw` returns 200.
+   - Confirm the article status changes to "REMOVED" in the dashboard.
+7. **Tombstone view:**
+   - Navigate to the withdrawn article's URL (e.g., `/article/<slug>`).
+   - Confirm the page shows "Article Withdrawn" heading.
+   - Confirm the author name and original publication date are shown.
+   - Confirm a "Back to feed" button is present.
+
+Pass criteria:
+- Delete only works on drafts — not published.
+- Edit on published requires a change note.
+- Withdrawal sets status to REMOVED and shows tombstone.
+- No 5xx errors during any action.
+
+## Flow 3e: Issue Correction
+
+Goal: verify journalists can issue corrections from the article detail page and the `CORRECTION_ISSUED` label appears.
+
+1. Log in as `elena.vasquez@example.com`.
+2. Open a published article authored by this journalist (e.g., from `/journalist/dashboard` → published tab → click article title).
+3. Scroll to the "Issue a Correction" section.
+4. Confirm the section is visible with:
+   - Severity dropdown (Typo, Clarification, Factual Error, Material Error, Retraction).
+   - Correction details textarea.
+   - "Submit Correction" button (disabled until ≥10 chars entered).
+5. Select severity "TYPO", enter correction text (≥10 chars).
+6. Click "Submit Correction".
+7. Confirm `POST /api/corrections` returns 201.
+8. Confirm a success toast appears and the corrections card refreshes at the top of the article (below the author, above the article body).
+9. Confirm a "CORRECTION ISSUED" integrity label badge appears on the article.
+
+Pass criteria:
+- Correction form is only visible to the article's author.
+- Correction appears at the top of the article body.
+- `CORRECTION_ISSUED` badge renders after submission.
+- No 5xx errors.
+
 ## Flow 3c: Journalist Revenue Page (formerly 3b)
 
 Goal: verify revenue reporting page loads.
@@ -286,8 +351,8 @@ Pass criteria:
 
 For a local change to be considered "ready for merge", an agent should report:
 
-1. `npm test` passes (142+ unit tests).
-2. `npm run test:e2e` passes (30+ Playwright tests covering Flows 1-8).
+1. `npm test` passes (161+ unit tests).
+2. `npm run test:e2e` passes (36+ Playwright tests covering Flows 1-8 + 3d/3e).
 3. `npm run build` succeeds.
 4. No blocker console/runtime errors remain.
 
